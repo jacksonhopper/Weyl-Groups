@@ -11,7 +11,7 @@ var authors = "Jackson Hopper";
 var version = 0.1;
 
 var currency;
-const cUpgrades = []; // the upgrades (this may jsut be a clone of the upgrades array?)
+const cUpgrades = []; // the upgrades (this may just be a clone of the upgrades array?)
 const letterUpgrades = []; // permanent upgrades, forming the backbone of the interest for this theory
 var buffer; // auto-buyer for letters
 var algType; // the main milestone upgrade
@@ -221,6 +221,8 @@ var init = () =>
     playerRank = 1;
     actuallyBuying = true;
     updateAvailability();
+    
+    currency.level = BigNumber.from(1e150);
 }
 
 var updateAvailability = () => {}
