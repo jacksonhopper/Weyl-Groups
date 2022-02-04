@@ -8,7 +8,7 @@ var id = "weyl-experimental";
 var name = "Weyl Groups";
 var description = "Build longer words to progress faster!";
 var authors = "Jackson Hopper";
-var version = 0.1;
+var version = "0.1.1";
 
 var currency;
 const cUpgrades = []; // the upgrades (this may just be a clone of the upgrades array?)
