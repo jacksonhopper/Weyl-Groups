@@ -1,4 +1,4 @@
-﻿import { CustomCost, ExponentialCost, FirstFreeCost, FreeCost, LinearCost } from "./api/Costs";
+import { CustomCost, ExponentialCost, FirstFreeCost, FreeCost, LinearCost } from "./api/Costs";
 import { Localization } from "./api/Localization";
 import { BigNumber } from "./api/BigNumber";
 import { QuaternaryEntry, theory } from "./api/Theory";
@@ -19,7 +19,6 @@ var playerRank; // tracks the chapter and prevents the display from filling up t
 var group; // an object of type WeylGroup
 var actuallyBuying; // to distinguish between backroom level resetting and intentional "buying"
 const quaternaryEntries = [];
-const cBoard = [];
 
 const LETTERS = ["a", "b", "c", "d", "e", "f", "g", "h"]
 const TYPES = ["A", "D", "B", "E"];
@@ -199,7 +198,7 @@ var init = () =>
         {
             group.changeType(algType.level);
             actuallyBuying = false;
-            for (let i=0;i<RANK;i++) letterUpgrades[j].level = group.word.length;
+            for (let i=0;i<RANK;i++) letterUpgrades[i].level = group.word.length;
             actuallyBuying = true;
             theory.invalidateSecondaryEquation();
             theory.invalidateTertiaryEquation();
@@ -221,7 +220,7 @@ var init = () =>
     playerRank = 1;
     actuallyBuying = true;
     updateAvailability();
-    
+
     currency.level = BigNumber.from(1e150);
 }
 
@@ -230,25 +229,26 @@ var updateAvailability = () => {}
 var tick = (elapsedTime, multiplier) => {
     let dt = BigNumber.from(elapsedTime * multiplier);
     let bonus = theory.publicationMultiplier;
-    const vVals = getVVals(group.word);
+    const nVals = getNVals(group.word);
     let sum = BigNumber.ZERO;
-    for (let i=0;i<RANK;i++) sum += vVals[i] * vVals[i]; // todo : implement calculation of |lambda - w(lambda)|
+    for (let i=0;i<RANK;i++) sum += nVals[i] * nVals[i]; // todo : implement calculation of |lambda - w(lambda)|
     currency.value += dt * bonus * BigNumber.TWO.pow(group.word.length) * BigNumber.from(Math.sqrt(sum));
 }
 
-var getPrimaryEquation = () => {
-    theory.primaryEquationHeight = 50;
+var getPrimaryEquation = () => 
+{
+    theory.primaryEquationHeight = 60;
     let result = "\\dot{\\rho} = ";
     
     result += "2^{\\ell(w)}";
-    result += "|\\lambda - w(\\lambda )|";
+    result += "\\sqrt{\\textstyle\\sum_{i=1}^8 n_i^2}";
 
     return result;
 }
 var getSecondaryEquation = () => 
 {
-    theory.secondaryEquationHeight = 75;
-    // theory.secondaryEquationScale = 0.9;
+    theory.secondaryEquationHeight = 80;
+    theory.secondaryEquationScale = 0.85;
     let result = "";
     let dynkin = [
         "\\begin{matrix}a&-&b&-&c&-&d&-&e&-&f&-&g&-&h\\end{matrix}",
@@ -259,7 +259,10 @@ var getSecondaryEquation = () =>
     
     result += "\\begin{matrix}\\begin{matrix}";
     result += theory.latexSymbol;
-    result += "=\\max\\rho^{0.1}, & \\lambda = \\sum_{i=1}^8 c_i \\omega _i, & \\mathbf v = \\lambda - w(\\lambda ), &\\ell(w) =";
+    result += "=\\max\\rho^{0.1}, &";
+    result += "\\lambda = \\displaystyle \\sum_{i=1}^8 c_i \\omega _i, \\\\";
+    result += "\\lambda - w(\\lambda ) = \\displaystyle \\sum_{i=1}^8 n_i \\omega _i, &";
+    result += "\\ell(w) =";
     result += group.word.length;
     result += "\\end{matrix}\\\\ \\\\" // todo : make sum only go to playerRank
     result += dynkin[algType.level];
@@ -315,11 +318,11 @@ var getTertiaryEquation = () =>
 }
 var getQuaternaryEntries = () =>
 {
-    const vVals = getVVals(group.word);
+    const nVals = getNVals(group.word);
     while (quaternaryEntries.length < RANK)
     {
         let len = quaternaryEntries.length;
-        let qeName = "v_{";
+        let qeName = "n_{";
         qeName += BigNumber.from(len+1).toString(0);
         qeName += "}";
         let qe = new QuaternaryEntry(qeName, BigNumber.ZERO);
@@ -327,13 +330,13 @@ var getQuaternaryEntries = () =>
     }
     for (let i=0;i<quaternaryEntries.length;i++) 
     {
-        quaternaryEntries[i].value = vVals[i].toString(0);
+        quaternaryEntries[i].value = nVals[i].toString(0);
     }
 
     return quaternaryEntries;
 }
 var getPublicationMultiplier = (tau) => tau.pow(1.5) / BigNumber.THREE;
-var getPublicationMultiplierFormula = (symbol) => "\\frac{{" + symbol + "}^{0.164}}{3}";
+var getPublicationMultiplierFormula = (symbol) => "\\frac{{" + symbol + "}^{1.5}}{3}";
 var getTau = () => BigNumber.from(currency.value).pow(0.1);
 var get2DGraphValue = () => currency.value.sign * (BigNumber.ONE + currency.value.abs()).log10().toNumber();
 
@@ -345,9 +348,9 @@ var getC5 = (level) => Utils.getStepwisePowerSum(level, 2, 10, 0);
 var getC6 = (level) => Utils.getStepwisePowerSum(level, 2, 10, 0);
 var getC7 = (level) => Utils.getStepwisePowerSum(level, 2, 10, 0);
 var getC8 = (level) => Utils.getStepwisePowerSum(level, 2, 10, 0);
-var getVVals = (word) => 
+var getNVals = (word) => 
 {
-    const vVals = [];
+    const nVals = [];
 
     const lambda = [];
     lambda.push(getC1(cUpgrades[0].level));
@@ -369,9 +372,24 @@ var getVVals = (word) =>
         for (let i=0;i<RANK;i++) wLambda[i] = newWLambda[i];
     }
 
-    for (let i=0;i<RANK;i++) vVals.push(BigNumber.from(lambda[i]-wLambda[i]));
+    for (let i=0;i<RANK;i++) nVals.push(BigNumber.from(lambda[i]-wLambda[i]));
 
-    return vVals;
+    return nVals;
+}
+
+var getInternalState = () =>
+{
+    let result = "";
+
+    for (let i=0;i<group.word.length;i++) result += group.word[i];
+
+    return result;
+}
+
+var setInternalState = (stateString) =>
+{
+    group.reset(algType.level);
+    group.addWord(stateString);
 }
 
 /*
@@ -451,6 +469,18 @@ class WeylGroup
         for (let i=0;i<RANK;i++) this.board[i] = idBoard[i];
     }
 
+    reset(type)
+    {
+        this.type = type;
+        this.cartan = [];
+        let CM = getCartan(type);
+        for (let i=0;i<RANK;i++) this.cartan[i] = CM[i];
+        this.word = [];
+        this.board = [];
+        let idBoard = getIdentityBoard();
+        for (let i=0;i<RANK;i++) this.board[i] = idBoard[i];
+    }
+
     /*
     creates a board corresponding to multiplying an element by a letter
     */
@@ -517,6 +547,11 @@ class WeylGroup
         this.board = this.multiply(letter,this.board);
 
         return dropIndex;
+    }
+
+    addWord(wordString)
+    {
+        for (let i=0;i<wordString.length;i++) this.addLetter(parseInt(wordString[i]));
     }
 
     changeType(type)
