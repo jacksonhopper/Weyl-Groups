@@ -3,6 +3,10 @@ import { Localization } from "./api/Localization";
 import { BigNumber } from "./api/BigNumber";
 import { QuaternaryEntry, theory } from "./api/Theory";
 import { Utils } from "./api/Utils";
+import { Popup } from "../api/ui/Popup";
+import { ImageSource } from "../api/ui/properties/ImageSource";
+import { Thickness } from "../api/ui/properties/Thickness";
+import { ui } from "../api/ui/UI"
 
 var id = "weyl-experimental";
 var name = "Weyl Groups";
@@ -10,16 +14,33 @@ var description = "Build longer words to progress faster!";
 var authors = "Jackson Hopper";
 var version = 0.2;
 
+// usual theory variables
 var currency;
 const cUpgrades = []; // the upgrades (this may just be a clone of the upgrades array?)
 const letterUpgrades = []; // permanent upgrades, forming the backbone of the interest for this theory
-var buffer; // auto-buyer for letters
 var algType; // the main milestone upgrade
-var playerRank; // tracks the chapter and prevents the display from filling up too early
-var group; // an object of type WeylGroup
-var actuallyBuying; // to distinguish between backroom level resetting and intentional "buying"
+var letterAutoBuyer;
 const quaternaryEntries = [];
 
+// state variables
+var group; // an object of type WeylGroup
+var bufferState = ""; // auto-buyer for letters
+var playerRank; // tracks the chapter and prevents the display from filling up too early
+var actuallyBuying; // to distinguish between backend level resetting and intentional "buying"
+
+// UI variables
+var bufferPopup; // This popup asks the player to enter a buffer string for the letter auto-buyer
+var bufferPopupLabel; // Label on the buffer popup; declared for dynamic text
+var bufferPopupEntry; // Field on the buffer popup; declared for dynamic text
+var tempText = ""; // For use in saving user input
+var bufferErrorPopup; // Appears if attempted input of invalid buffer string
+var bufferButton; // Technically this is a singular upgrade
+
+// debug variables
+var freeE10Rho;
+var timesClickedFreeE10Rho = 0;
+
+// constants
 const LETTERS = ["a", "b", "c", "d", "e", "f", "g", "h"]
 const TYPES = ["A", "D", "B", "E"];
 const RANK = 8;
@@ -30,84 +51,78 @@ var init = () =>
 
     ///////////////////
     // Regular Upgrades
-
-    // c1
     {
-        let getDesc = (level) => "c_1=" + getC1(level).toString(0);
-        cUpgrades.push(theory.createUpgrade(0, currency, new FirstFreeCost(new ExponentialCost(30, Math.log2(2)))));
-        cUpgrades[0].getDescription = (_) => Utils.getMath(getDesc(cUpgrades[0].level));
-        cUpgrades[0].getInfo = (amount) => Utils.getMathTo(getDesc(cUpgrades[0].level), getDesc(cUpgrades[0].level + amount));
-        cUpgrades[0].boughtOrRefunded = (_) => theory.invalidateQuaternaryValues();
-    }
-
-    // c2
-    {
-        let getDesc = (level) => "c_2=" + getC2(level).toString(0);
-        cUpgrades.push(theory.createUpgrade(1, currency, new ExponentialCost(15, Math.log2(2))));
-        cUpgrades[1].getDescription = (_) => Utils.getMath(getDesc(cUpgrades[1].level));
-        cUpgrades[1].getInfo = (amount) => Utils.getMathTo(getDesc(cUpgrades[1].level), getDesc(cUpgrades[1].level + amount));
-        cUpgrades[1].boughtOrRefunded = (_) => theory.invalidateQuaternaryValues();
-        // cUpgrades[1].isAvailable = false; // todo : gating
-    }
-
-    // c3
-    {
-        let getDesc = (level) => "c_3=" + getC3(level).toString(0);
-        cUpgrades.push(theory.createUpgrade(2, currency, new ExponentialCost(15, Math.log2(2))));
-        cUpgrades[2].getDescription = (_) => Utils.getMath(getDesc(cUpgrades[2].level));
-        cUpgrades[2].getInfo = (amount) => Utils.getMathTo(getDesc(cUpgrades[2].level), getDesc(cUpgrades[2].level + amount));
-        cUpgrades[2].boughtOrRefunded = (_) => theory.invalidateQuaternaryValues();
-        // cUpgrades[2].isAvailable = false;
-    }
-
-    // c4
-    {
-        let getDesc = (level) => "c_4=" + getC4(level).toString(0);
-        cUpgrades.push(theory.createUpgrade(3, currency, new ExponentialCost(15, Math.log2(2))));
-        cUpgrades[3].getDescription = (_) => Utils.getMath(getDesc(cUpgrades[3].level));
-        cUpgrades[3].getInfo = (amount) => Utils.getMathTo(getDesc(cUpgrades[3].level), getDesc(cUpgrades[3].level + amount));
-        cUpgrades[3].boughtOrRefunded = (_) => theory.invalidateQuaternaryValues();
-        // cUpgrades[3].isAvailable = false;
-    }
-
-    // c5
-    {
-        let getDesc = (level) => "c_5=" + getC5(level).toString(0);
-        cUpgrades.push(theory.createUpgrade(4, currency, new ExponentialCost(15, Math.log2(2))));
-        cUpgrades[4].getDescription = (_) => Utils.getMath(getDesc(cUpgrades[4].level));
-        cUpgrades[4].getInfo = (amount) => Utils.getMathTo(getDesc(cUpgrades[4].level), getDesc(cUpgrades[4].level + amount));
-        cUpgrades[4].boughtOrRefunded = (_) => theory.invalidateQuaternaryValues();
-        // cUpgrades[4].isAvailable = false;
-    }
-
-    // c6
-    {
-        let getDesc = (level) => "c_6=" + getC6(level).toString(0);
-        cUpgrades.push(theory.createUpgrade(5, currency, new ExponentialCost(15, Math.log2(2))));
-        cUpgrades[5].getDescription = (_) => Utils.getMath(getDesc(cUpgrades[5].level));
-        cUpgrades[5].getInfo = (amount) => Utils.getMathTo(getDesc(cUpgrades[5].level), getDesc(cUpgrades[5].level + amount));
-        cUpgrades[5].boughtOrRefunded = (_) => theory.invalidateQuaternaryValues();
-        // cUpgrades[5].isAvailable = false;
-    }
-
-    // c7
-    {
-        let getDesc = (level) => "c_7=" + getC7(level).toString(0);
-        cUpgrades.push(theory.createUpgrade(6, currency, new ExponentialCost(15, Math.log2(2))));
-        cUpgrades[6].getDescription = (_) => Utils.getMath(getDesc(cUpgrades[6].level));
-        cUpgrades[6].getInfo = (amount) => Utils.getMathTo(getDesc(cUpgrades[6].level), getDesc(cUpgrades[6].level + amount));
-        cUpgrades[6].boughtOrRefunded = (_) => theory.invalidateQuaternaryValues();
-        // cUpgrades[6].isAvailable = false;
-    }
-
-    // c8
-    {
-        let getDesc = (level) => "c_8=" + getC8(level).toString(0);
-        cUpgrades.push(theory.createUpgrade(7, currency, new ExponentialCost(15, Math.log2(2))));
-        cUpgrades[7].getDescription = (_) => Utils.getMath(getDesc(cUpgrades[7].level));
-        cUpgrades[7].getInfo = (amount) => Utils.getMathTo(getDesc(cUpgrades[7].level), getDesc(cUpgrades[7].level + amount));
-        cUpgrades[7].boughtOrRefunded = (_) => theory.invalidateQuaternaryValues();
-        // cUpgrades[7].isAvailable = false;
+        // c1
+        {
+            let getDesc = (level) => "c_1=" + getC1(level).toString(0);
+            cUpgrades.push(theory.createUpgrade(0, currency, new FirstFreeCost(new ExponentialCost(30, Math.log2(2)))));
+            cUpgrades[0].getDescription = (_) => Utils.getMath(getDesc(cUpgrades[0].level));
+            cUpgrades[0].getInfo = (amount) => Utils.getMathTo(getDesc(cUpgrades[0].level), getDesc(cUpgrades[0].level + amount));
+            cUpgrades[0].boughtOrRefunded = (_) => theory.invalidateQuaternaryValues();
+        }
+        // c2
+        {
+            let getDesc = (level) => "c_2=" + getC2(level).toString(0);
+            cUpgrades.push(theory.createUpgrade(1, currency, new ExponentialCost(15, Math.log2(2))));
+            cUpgrades[1].getDescription = (_) => Utils.getMath(getDesc(cUpgrades[1].level));
+            cUpgrades[1].getInfo = (amount) => Utils.getMathTo(getDesc(cUpgrades[1].level), getDesc(cUpgrades[1].level + amount));
+            cUpgrades[1].boughtOrRefunded = (_) => theory.invalidateQuaternaryValues();
+            // cUpgrades[1].isAvailable = false; // todo : gating
+        }
+        // c3
+        {
+            let getDesc = (level) => "c_3=" + getC3(level).toString(0);
+            cUpgrades.push(theory.createUpgrade(2, currency, new ExponentialCost(15, Math.log2(2))));
+            cUpgrades[2].getDescription = (_) => Utils.getMath(getDesc(cUpgrades[2].level));
+            cUpgrades[2].getInfo = (amount) => Utils.getMathTo(getDesc(cUpgrades[2].level), getDesc(cUpgrades[2].level + amount));
+            cUpgrades[2].boughtOrRefunded = (_) => theory.invalidateQuaternaryValues();
+            // cUpgrades[2].isAvailable = false;
+        }
+        // c4
+        {
+            let getDesc = (level) => "c_4=" + getC4(level).toString(0);
+            cUpgrades.push(theory.createUpgrade(3, currency, new ExponentialCost(15, Math.log2(2))));
+            cUpgrades[3].getDescription = (_) => Utils.getMath(getDesc(cUpgrades[3].level));
+            cUpgrades[3].getInfo = (amount) => Utils.getMathTo(getDesc(cUpgrades[3].level), getDesc(cUpgrades[3].level + amount));
+            cUpgrades[3].boughtOrRefunded = (_) => theory.invalidateQuaternaryValues();
+            // cUpgrades[3].isAvailable = false;
+        }
+        // c5
+        {
+            let getDesc = (level) => "c_5=" + getC5(level).toString(0);
+            cUpgrades.push(theory.createUpgrade(4, currency, new ExponentialCost(15, Math.log2(2))));
+            cUpgrades[4].getDescription = (_) => Utils.getMath(getDesc(cUpgrades[4].level));
+            cUpgrades[4].getInfo = (amount) => Utils.getMathTo(getDesc(cUpgrades[4].level), getDesc(cUpgrades[4].level + amount));
+            cUpgrades[4].boughtOrRefunded = (_) => theory.invalidateQuaternaryValues();
+            // cUpgrades[4].isAvailable = false;
+        }
+        // c6
+        {
+            let getDesc = (level) => "c_6=" + getC6(level).toString(0);
+            cUpgrades.push(theory.createUpgrade(5, currency, new ExponentialCost(15, Math.log2(2))));
+            cUpgrades[5].getDescription = (_) => Utils.getMath(getDesc(cUpgrades[5].level));
+            cUpgrades[5].getInfo = (amount) => Utils.getMathTo(getDesc(cUpgrades[5].level), getDesc(cUpgrades[5].level + amount));
+            cUpgrades[5].boughtOrRefunded = (_) => theory.invalidateQuaternaryValues();
+            // cUpgrades[5].isAvailable = false;
+        }
+        // c7
+        {
+            let getDesc = (level) => "c_7=" + getC7(level).toString(0);
+            cUpgrades.push(theory.createUpgrade(6, currency, new ExponentialCost(15, Math.log2(2))));
+            cUpgrades[6].getDescription = (_) => Utils.getMath(getDesc(cUpgrades[6].level));
+            cUpgrades[6].getInfo = (amount) => Utils.getMathTo(getDesc(cUpgrades[6].level), getDesc(cUpgrades[6].level + amount));
+            cUpgrades[6].boughtOrRefunded = (_) => theory.invalidateQuaternaryValues();
+            // cUpgrades[6].isAvailable = false;
+        }
+        // c8
+        {
+            let getDesc = (level) => "c_8=" + getC8(level).toString(0);
+            cUpgrades.push(theory.createUpgrade(7, currency, new ExponentialCost(15, Math.log2(2))));
+            cUpgrades[7].getDescription = (_) => Utils.getMath(getDesc(cUpgrades[7].level));
+            cUpgrades[7].getInfo = (amount) => Utils.getMathTo(getDesc(cUpgrades[7].level), getDesc(cUpgrades[7].level + amount));
+            cUpgrades[7].boughtOrRefunded = (_) => theory.invalidateQuaternaryValues();
+            // cUpgrades[7].isAvailable = false;
+        }
     }
 
     /////////////////////
@@ -116,28 +131,29 @@ var init = () =>
     theory.createBuyAllUpgrade(RANK + 1, currency, 1e13);
     theory.createAutoBuyerUpgrade(RANK + 2, currency, 1e30);
     {
-        buffer = theory.createPermanentUpgrade(RANK + 3,currency, new CustomCost((_) => BigNumber.from(1e50)));
-        buffer.getDescription = (_) => "Letter auto-buyer"; // localize / English
-        buffer.getInfo = (_) => "Buffer a string of letters to buy when available"; // localize / English
-        buffer.maxLevel = 1;
+        letterAutoBuyer = theory.createPermanentUpgrade(RANK + 3,currency, new CustomCost((_) => BigNumber.from(1e50)));
+        letterAutoBuyer.getDescription = (_) => "Letter auto-buyer"; // localize / English
+        letterAutoBuyer.getInfo = (_) => "Buffer a string of letters to buy when available"; // localize / English
+        letterAutoBuyer.maxLevel = 1;
+        letterAutoBuyer.bought = (_) => bufferButton.isAvailable;
     }
 
+    ///////////////////////
+    // Letter upgrades (they are permanent upgrades, though if it becomes easy I will make them their own)
     {
-        /*
-        the rough idea -- obviously subject to improvement via balancing --
-        is that how long you have to wait to buy a letter depends on the length of the word,
-            and you have to wait longer to buy letters later in the alphabet; potentially significantly longer,
-            but not overwhelmingly
-        right now it's set at 100^l(w) for an a, and that amount increases quadratically through the alphabet
-        */
-        letterUpgrades.push(theory.createPermanentUpgrade(0,currency,new FirstFreeCost(new ExponentialCost(100,Math.log2(100)))));
-        letterUpgrades.push(theory.createPermanentUpgrade(1,currency,new ExponentialCost(4,Math.log2(100))));
-        letterUpgrades.push(theory.createPermanentUpgrade(2,currency,new ExponentialCost(9,Math.log2(100))));
-        letterUpgrades.push(theory.createPermanentUpgrade(3,currency,new ExponentialCost(16,Math.log2(100))));
-        letterUpgrades.push(theory.createPermanentUpgrade(4,currency,new ExponentialCost(25,Math.log2(100))));
-        letterUpgrades.push(theory.createPermanentUpgrade(5,currency,new ExponentialCost(36,Math.log2(100))));
-        letterUpgrades.push(theory.createPermanentUpgrade(6,currency,new ExponentialCost(49,Math.log2(100))));
-        letterUpgrades.push(theory.createPermanentUpgrade(7,currency,new ExponentialCost(64,Math.log2(100))));
+        // the rough idea -- obviously subject to improvement via balancing --
+        // is that how long you have to wait to buy a letter depends on the length of the word,
+        //     and you have to wait longer to buy letters later in the alphabet; potentially significantly longer,
+        //     but not overwhelmingly
+        // right now it's set at 4^l(w) for an a, and that amount increases quadratically through the alphabet
+        letterUpgrades.push(theory.createPermanentUpgrade(0,currency,new FirstFreeCost(new ExponentialCost(4,Math.log2(10)))));
+        letterUpgrades.push(theory.createPermanentUpgrade(1,currency,new ExponentialCost(4,Math.log2(10))));
+        letterUpgrades.push(theory.createPermanentUpgrade(2,currency,new ExponentialCost(9,Math.log2(10))));
+        letterUpgrades.push(theory.createPermanentUpgrade(3,currency,new ExponentialCost(16,Math.log2(10))));
+        letterUpgrades.push(theory.createPermanentUpgrade(4,currency,new ExponentialCost(25,Math.log2(10))));
+        letterUpgrades.push(theory.createPermanentUpgrade(5,currency,new ExponentialCost(36,Math.log2(10))));
+        letterUpgrades.push(theory.createPermanentUpgrade(6,currency,new ExponentialCost(49,Math.log2(10))));
+        letterUpgrades.push(theory.createPermanentUpgrade(7,currency,new ExponentialCost(64,Math.log2(10))));
         for (let i=0;i<RANK;i++) 
         {
             letterUpgrades[i].description = Utils.getMath(LETTERS[i] + "\\ "); // the "f" box cuts off the right side if you don't add a space after
@@ -153,7 +169,7 @@ var init = () =>
 
                 return result;
             }
-            letterUpgrades[i].maxLevel = 120;
+            // letterUpgrades[i].maxLevel = 120;
             letterUpgrades[i].bought = (amount) =>
             {
                 if (actuallyBuying)
@@ -166,6 +182,7 @@ var init = () =>
                         theory.invalidateSecondaryEquation();
                         theory.invalidateTertiaryEquation();
                         theory.invalidateQuaternaryValues();
+                        bufferPopupLabel.text = getBufferMessage();
                     }
                     for (let j=0;j<RANK;j++)
                         {
@@ -178,10 +195,28 @@ var init = () =>
         }
     }
 
+    //////////////////////
+    // Singular upgrade (used to open up word buffer)
+    {
+        bufferButton = theory.createSingularUpgrade(0, currency, new FreeCost());
+        bufferButton.getDescription = (_) => "Enter a string of letters to auto-buy";
+        bufferButton.bought = (_) => 
+        {
+            if (actuallyBuying)
+            {
+                actuallyBuying = false;
+                bufferButton.level = 0; // I want to not have a level, but this will do for now
+                bufferPopupEntry.text = bufferState; // I want to reset the populated text when the popup is shown
+                bufferPopup.show();
+                actuallyBuying = true;
+            }
+        }
+        bufferButton.isAvailable = false;
+    }
+
     ///////////////////////
     //// Milestone Upgrades
     theory.setMilestoneCost(new LinearCost(2.5, 2.5));
-
     {
         algType = theory.createMilestoneUpgrade(0, 3);
         algType.getDescription = (amount) =>
@@ -216,38 +251,139 @@ var init = () =>
     // chapter1 = theory.createStoryChapter(0, "My First Chapter", "This is line 1,\nand this is line 2.\n\nNice.", () => cList[0].level > 0);
     // chapter2 = theory.createStoryChapter(1, "My Second Chapter", "This is line 1 again,\nand this is line 2... again.\n\nNice again.", () => cList[1].level > 0);
 
+    // state initializations
     group = new WeylGroup(0);
     playerRank = 1;
     actuallyBuying = true;
     updateAvailability();
 
-    currency.level = BigNumber.from(1e150);
+    // UI initializations
+    bufferPopupLabel = ui.createLatexLabel({text:getBufferMessage()});
+    bufferPopup = ui.createPopup({
+        title: "Letter auto-buyer", // todo : localize
+        content: ui.createStackLayout({
+            children: [
+                ui.createFrame({
+                    padding: new Thickness(11,11),
+                    content: bufferPopupLabel
+                }),
+                bufferPopupEntry = ui.createEntry({
+                    isSpellCheckEnabled: false,
+                    isTextPredictionEnabled: false,
+                    text: bufferState,
+                    onTextChanged: (_, tempInput) => tempText = tempInput.toLowerCase(),
+                    onCompleted: () => 
+                    {
+                        if (bufferIsValid(tempText)) bufferState = tempText;
+                        else bufferErrorPopup.show();
+                        tempText = "";
+                        bufferPopup.hide();
+                    }
+                }),
+                ui.createButton({
+                    text: "Apply", // localize
+                    onClicked: () => 
+                    {
+                        if (bufferIsValid(tempText)) 
+                        {
+                            bufferState = tempText;
+                            bufferPopup.hide()
+                        }
+                        else bufferErrorPopup.show();
+                    }
+                })
+            ]
+        }),
+        isPeekable: true,
+        closeOnBackgroundClicked: true
+    });
+    bufferErrorPopup = ui.createPopup({
+        title: "Error: Invalid buffer", // localize
+        content: ui.createStackLayout({
+            children: [
+                ui.createFrame({
+                    padding: new Thickness(10,10),
+                    content: ui.createLatexLabel({
+                        text: "Only use the letters \\(a\\) through \\(h\\)"
+                    })
+                }),
+                ui.createButton({
+                    text: "Close", // localize
+                    onClicked: () => bufferErrorPopup.hide()
+                }),
+            ]
+        }),
+        closeOnBackgroundClicked: true
+    });
+
+    // debug feature: free rho
+    freeE10Rho = theory.createSingularUpgrade(1,currency,new FreeCost());
+    freeE10Rho.bought = (amount) => timesClickedFreeE10Rho += amount;
+    freeE10Rho.description = "Get \\(e10\\rho\\) free";
 }
 
-var updateAvailability = () => {}
+/**
+ * Call whenever "availability" needs to be reevaluated
+ */
+var updateAvailability = () => 
+{
+    bufferButton.isAvailable = (letterAutoBuyer.level > 0);
+}
 
 var tick = (elapsedTime, multiplier) => {
+    // auto-buy letters
+    if (bufferState.length > 0)
+    {
+        let letterToBuy = 0;
+        switch (bufferState[0])
+        {
+            case "a": letterToBuy = 0; break;
+            case "b": letterToBuy = 1; break;
+            case "c": letterToBuy = 2; break;
+            case "d": letterToBuy = 3; break;
+            case "e": letterToBuy = 4; break;
+            case "f": letterToBuy = 5; break;
+            case "g": letterToBuy = 6; break;
+            case "h": letterToBuy = 7; break;
+        }
+        let upgradeToBuy = letterUpgrades[letterToBuy];
+        let diff = currency.value - upgradeToBuy.cost.getCost(upgradeToBuy.level+1);
+        if (diff.sign > -1)
+        {
+            upgradeToBuy.buy(1);
+            bufferState = bufferState.slice(1);
+        }
+    }
+
+    // increase rho
     let dt = BigNumber.from(elapsedTime * multiplier);
     let bonus = theory.publicationMultiplier;
     const nVals = getNVals(group.word);
     let sum = BigNumber.ZERO;
-    for (let i=0;i<RANK;i++) sum += nVals[i] * nVals[i]; // todo : implement calculation of |lambda - w(lambda)|
-    currency.value += dt * bonus * BigNumber.TWO.pow(group.word.length) * BigNumber.from(Math.sqrt(sum));
+    for (let i=0;i<RANK;i++) sum += nVals[i] * nVals[i];
+    currency.value += dt * bonus * BigNumber.TWO.pow(group.word.length) * BigNumber.from(sum);
+
+    // debug feature: free rho
+    if (timesClickedFreeE10Rho > 0)
+    {
+        currency.value *= BigNumber.from(1e10);
+        timesClickedFreeE10Rho--;
+    }
 }
 
 var getPrimaryEquation = () => 
 {
-    theory.primaryEquationHeight = 60;
+    theory.primaryEquationHeight = 51;
     let result = "\\dot{\\rho} = ";
     
     result += "2^{\\ell(w)}";
-    result += "\\sqrt{\\textstyle\\sum_{i=1}^8 n_i^2}";
+    result += "\\sum_{i=1}^8 n_i^2";
 
     return result;
 }
 var getSecondaryEquation = () => 
 {
-    theory.secondaryEquationHeight = 80;
+    theory.secondaryEquationHeight = (algType.level % 2 == 0) ? 80 : 100;
     theory.secondaryEquationScale = 0.85;
     let result = "";
     let dynkin = [
@@ -270,7 +406,13 @@ var getSecondaryEquation = () =>
 
     return result;
 }
-var wordString = (aWord) =>
+/**
+ * Returns a string representing the word passed in
+ * The letters of the returned string are letters "a" through "h"
+ * @param {number[]} aWord 
+ * @returns {String}
+ */
+var getWordString = (aWord) => 
 {
     let result = "";
 
@@ -284,32 +426,19 @@ var wordString = (aWord) =>
 }
 var getTertiaryEquation = () =>
 {
+    let eqnHt = 20 * Math.ceil(group.word.length / 4);
+    theory.tertiaryEquationHeight = eqnHt;
+    theory.tertiaryEquationScale = .5;
     let result = "w=\\begin{array}{l}";
-    let rawString = wordString(group.word);
+    let rawString = getWordString(group.word);
+    let len = rawString.length;
 
-    let i=0;
-    while (i<rawString.length && i<30) 
+    if (len < 30) result += rawString;
+    else
     {
-        result += rawString[i];
-        i++;
-    }
-    if (rawString.length > 30) result += "\\\\";
-    while (i<rawString.length && i<60)
-    {
-        result += rawString[i];
-        i++;
-    }
-    if (rawString.length > 30) result += "\\\\";
-    while (i<rawString.length && i<90) 
-    {
-        result += rawString[i];
-        i++;
-    }
-    if (rawString.length > 30) result += "\\\\";
-    while (i<rawString.length && i<120)
-    {
-        result += rawString[i];
-        i++;
+        result += rawString.slice(0,3);
+        result += "\\ldots ";
+        result += rawString.slice(len-25);
     }
 
     result += "\\end{array}"
@@ -335,6 +464,11 @@ var getQuaternaryEntries = () =>
 
     return quaternaryEntries;
 }
+var postPublish = () =>
+{
+    updateAvailability();
+    theory.invalidateQuaternaryValues();
+}
 var getPublicationMultiplier = (tau) => tau.pow(1.5) / BigNumber.THREE;
 var getPublicationMultiplierFormula = (symbol) => "\\frac{{" + symbol + "}^{1.5}}{3}";
 var getTau = () => BigNumber.from(currency.value).pow(0.1);
@@ -348,6 +482,16 @@ var getC5 = (level) => Utils.getStepwisePowerSum(level, 2, 10, 0);
 var getC6 = (level) => Utils.getStepwisePowerSum(level, 2, 10, 0);
 var getC7 = (level) => Utils.getStepwisePowerSum(level, 2, 10, 0);
 var getC8 = (level) => Utils.getStepwisePowerSum(level, 2, 10, 0);
+
+/**
+ * Returns a length-8 array of "n-values"
+ * These values depend on the levels of c_1 through c_8 and the element w in W
+ * If lambda = \sum c_i omega_i, then lambda - w(lambda) = \sum n_i omega_i
+ * The returned string is [n_1, ..., n_8]
+ * These are displayed as quaternary values and used in the currency equation
+ * @param {number[]} word 
+ * @returns {number[]}
+ */
 var getNVals = (word) => 
 {
     const nVals = [];
@@ -381,20 +525,31 @@ var getInternalState = () =>
 {
     let result = "";
 
+    // save group.word
     for (let i=0;i<group.word.length;i++) result += group.word[i];
+
+    // save bufferState
+    if (bufferState.length > 0) result += " " + bufferState;
 
     return result;
 }
-
 var setInternalState = (stateString) =>
 {
+    values = stateString.split(" ");
+
     group.reset(algType.level);
-    group.addWord(stateString);
+    if (values.length > 0) group.addWord(values[0]);
+
+    bufferState = "";
+    if (values.length > 1) for (let i=0;i<values[1].length;i++) bufferState += values[1][i]; // I don't trust js strings or arrays
+
+    timesClickedFreeE10Rho = 0;
 }
 
-/*
-Wanted this to be a static method in WeylGroup, but it's not working like I hoped
-*/
+/**
+ * Returns a length-8 array [1,...,1], representing the identity element in W
+ * @returns {number[]}
+ */
 var getIdentityBoard = () =>
 {
     const board = [];
@@ -407,13 +562,12 @@ var getIdentityBoard = () =>
     return board;
 }
 
-/*
-Wanted this to be a static method in WeylGroup, but it's not working like I hoped
-*/
-/*
-Returns the Cartan matrix corresponding to the type input
-Remember, the type order is A, D, B, E and the rank is always 8
-*/
+/**
+ * Returns the Cartan matrix corresponding to the type input
+ * This matrix is an 8x8 array of numbers, and is useful for the multiply function
+ * @param {number} type - The type order is A, D, B, E
+ * @returns {number[][]}
+ */
 var getCartan = (type) =>
 {
     cartan = [];
@@ -442,14 +596,74 @@ var getCartan = (type) =>
     return cartan;
 }
 
-/*
-WeylGroup holds an element of a Weyl group of rank 8
+/**
+ * Returns true if the string is composed of only the letters a through h, and false otherwise
+ * Is case sensitive (you should convert your string to lowercaase before passing it in)
+ * @param {String} testText 
+ * @returns {boolean}
+ */
+var bufferIsValid = (testText) =>
+{
+    let isValid = true;
 
-type is an integer 0..4 corresponding to the type, in the order A, D, B, E
-word is an array of integers 0..7 representing a reduced word in the Weyl group, with letters corresponding to simple reflections
-board is a representation of the element corresponding to word. Specifically, it is a length-8 array of integers corresponding to
-    coefficients for fundamental weigths in the element w(rho)
-*/
+    let i=0;
+    while (isValid && i < testText.length)
+    {
+        switch(testText[i])
+        {
+            case "a": break;
+            case "b": break;
+            case "c": break;
+            case "d": break;
+            case "e": break;
+            case "f": break;
+            case "g": break;
+            case "h": break;
+            default: isValid = false; break;
+        }
+        i++;
+    }
+
+    return isValid;
+}
+
+/**
+ * Returns the message to be shown in the popup where buffer is input
+ * I want this to be dynamic so the player can read the entire word (if they intend to use that information)
+ * todo: localize and gate
+ * @returns {String}
+ */
+var getBufferMessage = () =>
+{
+    let result = "";
+    let rawWordString = getWordString(group.word);
+    let len = rawWordString.length;
+    
+    result +="Enter a string of letters (\\(a\\) through \\(h\\)) to automatically buy when available. \\(W\\) is type \\(";
+    result += TYPES[algType.level];
+    result += "\\) and your current word is:\\\\ \\(\\begin{matrix}";
+    let i=0;
+    while (i < len)
+    {
+        if (i > 0) result += "\\\\";
+        result += rawWordString.slice(i,i+40);
+        i += 40;
+    }
+    result += "\\end{matrix}\\)";
+
+    return result;
+}
+
+/**
+ * WeylGroup holds an element of a Weyl group of rank 8
+ *
+ * type is an integer 0..4 corresponding to the type, in the order A, D, B, E
+ * word is an array of integers 0..7 representing a reduced word in the Weyl group, with letters corresponding to simple reflections
+ * board is a representation of the element corresponding to word. Specifically, it is a length-8 array of integers corresponding to
+ *    coefficients for fundamental weigths in the element w(rho)
+ * 
+ * 
+ */
 class WeylGroup
 {
     type;
@@ -459,16 +673,36 @@ class WeylGroup
 
     constructor(type)
     {
+        /**
+         * represents the type of W: A, D, B, or E
+         * @type {number}
+         */
         this.type = type;
+        /**
+         * Holds the Cartan matrix corresponding to the group W, an 8x8 number array
+         * @type {number[][]}
+         */
         this.cartan = [];
         let CM = getCartan(type);
         for (let i=0;i<RANK;i++) this.cartan[i] = CM[i];
+        /**
+         * Holds an arbitrarily long array of numbers, the reduced word 
+         * @type {number[]}
+         */
         this.word = [];
+        /**
+         * Holds a length-8 array of numbers corresponding to the element of W determined by word
+         * @type {number[]}
+         */
         this.board = [];
         let idBoard = getIdentityBoard();
         for (let i=0;i<RANK;i++) this.board[i] = idBoard[i];
     }
 
+    /**
+     * Resets this to a blank group of type type
+     * @param {number} type 
+     */
     reset(type)
     {
         this.type = type;
@@ -481,9 +715,12 @@ class WeylGroup
         for (let i=0;i<RANK;i++) this.board[i] = idBoard[i];
     }
 
-    /*
-    creates a board corresponding to multiplying an element by a letter
-    */
+    /**
+     * Returns a length-8 array representing the product of the element determined by board, multiplied by the letter letter
+     * @param {number} letter
+     * @param {number[]} board
+     * @returns {number[]}
+     */
     multiply(letter,board)
     {
         let mult = board[letter];
@@ -493,11 +730,13 @@ class WeylGroup
         return board;
     }
 
-    /*
-    Changes this.board and this.word to reflect the addition of a letter
-    Preserves the status of this.word being reduced
-    Returns a -1 if the letter makes this.word longer, and returns the drop index if not
-    */
+    /**
+     * Changes this.board and this.word to reflect the addition of a letter to word
+     * Preserves the status of this.word being reduced
+     * Returns a -1 if the letter makes this.word longer, and returns the drop index if not
+     * @param {number} letter - the letter to multiply
+     * @return {number}
+     */
     addLetter(letter) // this needs testing, but it should be more readable than the mainline one
     {
         let dropIndex = -1;
@@ -549,11 +788,24 @@ class WeylGroup
         return dropIndex;
     }
 
+    /**
+     * Adds a string of letters to word and reduces them
+     * The string should be a string of numbers 0-7, rather than the letters themselves
+     * @param {String} wordString 
+     */
     addWord(wordString)
     {
         for (let i=0;i<wordString.length;i++) this.addLetter(parseInt(wordString[i]));
     }
 
+    /**
+     * Changes the type of W according to the number passed in
+     * As opposed to reset(), changeType is intended to be non-destructive of w
+     * Still, w tends to shrink significantly upon switching types
+     * I may reconsider how this works, since I want the player to be motivated to buy milestone upgrades as early as possible
+     * The types are A, D, B, E
+     * @param {number} type 
+     */
     changeType(type)
     {
         let oldWord = [];
