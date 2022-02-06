@@ -135,7 +135,7 @@ var init = () =>
         letterAutoBuyer.getDescription = (_) => "Letter auto-buyer"; // localize / English
         letterAutoBuyer.getInfo = (_) => "Buffer a string of letters to buy when available"; // localize / English
         letterAutoBuyer.maxLevel = 1;
-        letterAutoBuyer.bought = (_) => bufferButton.isAvailable;
+        letterAutoBuyer.bought = (_) => bufferButton.isAvailable = true;
     }
 
     ///////////////////////
