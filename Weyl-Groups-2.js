@@ -145,8 +145,8 @@ var init = () =>
         // is that how long you have to wait to buy a letter depends on the length of the word,
         //     and you have to wait longer to buy letters later in the alphabet; potentially significantly longer,
         //     but not overwhelmingly
-        // right now it's set at 4^l(w) for an a, and that amount increases quadratically through the alphabet
-        letterUpgrades.push(theory.createPermanentUpgrade(0,currency,new FirstFreeCost(new ExponentialCost(4,Math.log2(10)))));
+        // right now it's set at 10^l(w) for an a, and that amount increases quadratically through the alphabet
+        letterUpgrades.push(theory.createPermanentUpgrade(0,currency,new FirstFreeCost(new ExponentialCost(10,Math.log2(10)))));
         letterUpgrades.push(theory.createPermanentUpgrade(1,currency,new ExponentialCost(4,Math.log2(10))));
         letterUpgrades.push(theory.createPermanentUpgrade(2,currency,new ExponentialCost(9,Math.log2(10))));
         letterUpgrades.push(theory.createPermanentUpgrade(3,currency,new ExponentialCost(16,Math.log2(10))));
