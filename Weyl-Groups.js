@@ -12,13 +12,15 @@ var id = "weyl-groups";
 var name = "Weyl Groups";
 var description = "Build longer words to progress faster!\n\nA word w is an element of a Weyl group W, and it is a sequence of letters a through h.";
 var authors = "Jackson Hopper";
-var version = 0.2;
+var version = 0.4;
 
-// usual theory variables
+// theory variables
 var currency; // rho
 var q1, q2; // normal q variables
 const letterUpgrades = []; // letters that make up the word
-var algTypeD; // milestone upgrade for type -- A, D, B, E
+var algTypeD; // milestone upgrade for type D
+var algTypeB; // milestone upgrade for type B
+var algTypeE; // milestone upgrade for type E
 var wRank; // milestone upgrade for rank -- level 0 is rank 3, up to level 5 for rank 8
 var letterAutoBuyer; // permanent upgrade used to make letter auto-buyer available
 var bufferButton; // singular upgrade used to open up the field where player inputs buffer string
@@ -28,6 +30,7 @@ var q; // a typical q variable
 var group; // an object of type WeylGroup
 var letterAutoBuyerCount; // controls the letter auto-buyer
 var bufferState = ""; // auto-buyer for letters
+var saveWord = true;
 var actuallyBuying; // to distinguish between backend level resetting and intentional "buying"
 
 // UI variables
@@ -40,13 +43,18 @@ var bufferPopupLabel; // Label on the buffer popup; declared for dynamic text
 var bufferPopupEntry; // Field on the buffer popup; declared for dynamic text
 var tempText = ""; // For use in saving user input
 var bufferErrorPopup; // Appears if attempted input of invalid buffer string
+var errorLabel;
+var saveWordSwitch;
 
-// debug variables
+// achievement variables
+var highestLetter;
+
+// free rho variables
 var freeE10Rho;
 var timesClickedFreeE10Rho = 0;
 
 // tick variables -- declared here to avoid re-declaring every tick
-// anyone who actually codes for a living feel free to weigh in on this
+// anyone who actually codes for a living feel free to weigh in on this, but I think this is faster
 var letterToBuy;
 var upgradeToBuy;
 var diff;
@@ -63,8 +71,16 @@ const ID = [[1,0,0,0,0,0,0,0],
             [0,0,0,0,0,1,0,0],
             [0,0,0,0,0,0,1,0],
             [0,0,0,0,0,0,0,1]];
-const RHO = [1,1,1,1,1,1,1,1]; // This is the "Weyl vertex"
+const RHO = [1,1,1,1,1,1,1,1]; // This is the "Weyl vertex" (represented with the basis of fundamental coweights)
 // note: the Weyl vertex is conventially called rho, but the player will not see this name for it
+const MAX_LENGTHS = [[  1,  3,  6, 10, 15, 21, 28, 36],
+                     [  0,  0,  0, 12, 20, 30, 42, 56],
+                     [  0,  0,  0, 16, 25, 36, 49, 64],
+                     [  0,  0,  0,  0,  0, 36, 63,120]]; // spoiler warning, lol
+const LONGEST_WORDS = [ "010210321043210543210654321076543210",
+                        "01021031021343102134543102134565431021345676543102134567",
+                        "0101210123210123432101234543210123456543210123456765432101234567",
+                        "010210321042103214235421032142354210654210321423542106542132456765421032142354210654213245676542103214235421065421324567"]; // super spoiler warning
 
 var init = () => 
 {
@@ -189,11 +205,38 @@ var init = () =>
             return result;
         }
         wRank.getInfo = (_) => Localization.getUpgradeIncCustomInfo("n","1");
-        wRank.boughtOrRefunded = (_) =>
+        wRank.bought = (_) =>
         {
-            theory.invalidatePrimaryEquation();
-            theory.invalidateSecondaryEquation();
-            updateAvailability(); // todo: test; I need algType MUs to refund if rank gets too low
+            if (actuallyBuying)
+            {
+                actuallyBuying = false;
+                if (wRank.level < 1) algTypeD.level = 0;
+                if (wRank.level < 1) algTypeB.level = 0;
+                if (wRank.level < 3) algTypeE.level = 0;
+                for (let i=0;i<RANK;i++) letterUpgrades[i].level = group.word.length;
+                actuallyBuying = true;
+            
+                theory.invalidatePrimaryEquation();
+                theory.invalidateSecondaryEquation();
+                updateAvailability();
+            }
+        }
+        wRank.refunded = (_) =>
+        {
+            if (actuallyBuying)
+            {
+                actuallyBuying = false;
+                if (wRank.level < 1) algTypeD.level = 0;
+                if (wRank.level < 1) algTypeB.level = 0;
+                if (wRank.level < 3) algTypeE.level = 0;
+                group.eraseLettersAfter(wRank.level + 2);
+                for (let i=0;i<RANK;i++) letterUpgrades[i].level = group.word.length;
+                actuallyBuying = true;
+            
+                theory.invalidatePrimaryEquation();
+                theory.invalidateSecondaryEquation();
+                updateAvailability();
+            }
         }
 
         algTypeD = theory.createMilestoneUpgrade(1, 1);
@@ -203,13 +246,22 @@ var init = () =>
         algTypeD.info = desc;
         algTypeD.boughtOrRefunded = (_) => 
         {
-            group.changeType(getAlgTypeLevel());
-            actuallyBuying = false;
-            for (let i=0;i<RANK;i++) letterUpgrades[i].level = group.word.length;
-            actuallyBuying = true;
-            theory.invalidatePrimaryEquation();
-            theory.invalidateSecondaryEquation();
-            updateAvailability();
+            if (actuallyBuying)
+            {
+                actuallyBuying = false;
+                if (algTypeD.level < 1)
+                {
+                    algTypeB.level = 0;
+                    algTypeE.level = 0;
+                }
+                group.changeType(getAlgTypeLevel(),wRank.level+2);
+                for (let i=0;i<RANK;i++) letterUpgrades[i].level = group.word.length;
+                actuallyBuying = true;
+
+                theory.invalidatePrimaryEquation();
+                theory.invalidateSecondaryEquation();
+                updateAvailability();
+            }
         }
         algTypeD.isAvailable = false;
 
@@ -220,13 +272,21 @@ var init = () =>
         algTypeB.info = desc;
         algTypeB.boughtOrRefunded = (_) => 
         {
-            group.changeType(getAlgTypeLevel());
-            actuallyBuying = false;
-            for (let i=0;i<RANK;i++) letterUpgrades[i].level = group.word.length;
-            actuallyBuying = true;
-            theory.invalidatePrimaryEquation();
-            theory.invalidateSecondaryEquation();
-            updateAvailability();
+            if (actuallyBuying)
+            {
+                actuallyBuying = false;
+                if (algTypeB.level < 1)
+                {
+                    algTypeE.level = 0;
+                }
+                group.changeType(getAlgTypeLevel(),wRank.level+2);
+                for (let i=0;i<RANK;i++) letterUpgrades[i].level = group.word.length;
+                actuallyBuying = true;
+                
+                theory.invalidatePrimaryEquation();
+                theory.invalidateSecondaryEquation();
+                updateAvailability();
+            }
         }
         algTypeB.isAvailable = false;
 
@@ -237,13 +297,17 @@ var init = () =>
         algTypeE.info = desc;
         algTypeE.boughtOrRefunded = (_) => 
         {
-            group.changeType(getAlgTypeLevel());
-            actuallyBuying = false;
-            for (let i=0;i<RANK;i++) letterUpgrades[i].level = group.word.length;
-            actuallyBuying = true;
-            theory.invalidatePrimaryEquation();
-            theory.invalidateSecondaryEquation();
-            updateAvailability();
+            if (actuallyBuying)
+            {
+                actuallyBuying = false;
+                group.changeType(getAlgTypeLevel(),wRank.level+2);
+                for (let i=0;i<RANK;i++) letterUpgrades[i].level = group.word.length;
+                actuallyBuying = true;
+                
+                theory.invalidatePrimaryEquation();
+                theory.invalidateSecondaryEquation();
+                updateAvailability();
+            }
         }
         algTypeE.isAvailable = false;
     }
@@ -270,16 +334,15 @@ var init = () =>
     // UI initializations
     {
         // buffer popup
-        bufferPopupLabel = ui.createLatexLabel({
-            text: getBufferMessage(),
-        });
         bufferPopup = ui.createPopup({
             title: "Letter auto-buyer", // todo : localize
             content: ui.createStackLayout({
                 children: [
                     ui.createFrame({
                         padding: new Thickness(11,11),
-                        content: bufferPopupLabel
+                        content: bufferPopupLabel = ui.createLatexLabel({
+                            text: getBufferMessage(),
+                        })
                     }),
                     bufferPopupEntry = ui.createEntry({
                         isSpellCheckEnabled: false,
@@ -288,14 +351,16 @@ var init = () =>
                         onTextChanged: (_, tempInput) => tempText = tempInput.toLowerCase(),
                         onCompleted: () => 
                         {
-                            if (bufferIsValid(tempText)) bufferState = tempText;
-                            else bufferErrorPopup.show();
+                            if (bufferIsValid(tempText)) 
+                            {
+                                bufferState = tempText;
+                                bufferPopup.hide();
+                            } else bufferErrorPopup.show();
                             tempText = "";
-                            bufferPopup.hide();
                         }
                     }),
                     ui.createButton({
-                        text: "Apply", // localize
+                        text: "Set buffer", // localize
                         onClicked: () => 
                         {
                             if (bufferIsValid(tempText)) 
@@ -304,13 +369,51 @@ var init = () =>
                                 bufferPopup.hide()
                             }
                             else bufferErrorPopup.show();
+                            tempText = "";
                         }
+                    }),
+                    ui.createGrid({
+                        columnDefinitions: ["*","60"],
+                        children: [
+                            ui.createFrame({
+                                padding: new Thickness(11,11),
+                                content: ui.createLatexLabel({
+                                    text: "Turn this button on to save your current word when you publish. Otherwise, the buffer will be cleared upon publishing."
+                                }),
+                                column: 0
+                            }),
+                            ui.createStackLayout({
+                                children: [
+                                    ui.createLatexLabel({text: "On"}),
+                                    saveWordSwitch = ui.createSwitch({
+                                        onTouched: (touch) =>
+                                        {
+                                            if (touch.type.isReleased())
+                                            {
+                                                saveWordSwitch.isToggled = !saveWord;
+                                                saveWord = saveWordSwitch.isToggled;
+                                            }
+                                        },
+                                        rotation: 270,
+                                        isToggled: saveWord,
+                                        column: 1
+                                    }),
+                                    ui.createLatexLabel({text: "Off"})
+                                ],
+                                column: 1
+                            })
+                        ]
                     })
                 ]
             }),
             isPeekable: true,
             closeOnBackgroundClicked: true,
-            onAppearing: () => bufferPopupLabel.text = getBufferMessage()
+            onAppearing: () => 
+            {
+                bufferPopupLabel.text = getBufferMessage();
+                bufferPopupEntry.text = bufferState;
+                saveWordSwitch.isToggled = saveWord;
+            }
         });
 
         // buffer error message
@@ -320,8 +423,8 @@ var init = () =>
                 children: [
                     ui.createFrame({
                         padding: new Thickness(10,10),
-                        content: ui.createLatexLabel({
-                            text: "Only use the letters \\(a\\) through \\(h\\)"
+                        content: errorLabel = ui.createLatexLabel({
+                            text: getErrorMessage()
                         })
                     }),
                     ui.createButton({
@@ -330,7 +433,8 @@ var init = () =>
                     }),
                 ]
             }),
-            closeOnBackgroundClicked: true
+            closeOnBackgroundClicked: true,
+            onAppearing: () => errorLabel.text = getErrorMessage()
         });
 
         // arrows overlay
@@ -630,14 +734,10 @@ var tick = (elapsedTime, multiplier) => {
     var getWordString = (word) => 
     {
         let result = "";
-    
-        if (word.length == 0) result += "*";
-        else 
-        {
-            for (let i=0;i<word.length;i++) result += LETTERS[word[i]];
-        }
 
-    return result;
+        for (let i=0;i<word.length;i++) result += LETTERS[word[i]];
+
+        return result;
     }
     /**
      * When page == 0, returns type and w
@@ -655,6 +755,7 @@ var tick = (elapsedTime, multiplier) => {
             {
                 let actualRank = wRank.level + 3;
                 let wordString = getWordString(group.word);
+                if (wordString.length == 0) wordString += "*";
                 let segmentedWordString = [];
                 {
                     segmentedWordString.push(wordString.slice(0,30));
@@ -837,20 +938,31 @@ var tick = (elapsedTime, multiplier) => {
 }
 
 /**
- * After publishing, updates availability, resets word, resets q, resets equations
+ * Before publishing, adds the current word to the start of the buffer (if set to do so)
+ * Otherwise, erases the buffer string (this is the right thing to do)
+ */
+var prePublish = () => 
+{
+    if (saveWord && letterAutoBuyer.level > 0)
+    {
+        let tempBuffer = getWordString();
+        tempBuffer += bufferState;
+        bufferState = "";
+        for (let i=0;i<tempBuffer.length;i++) bufferState += tempBuffer[i];
+    } else bufferState = "";
+}
+/**
+ * After publishing, updates availability, resets word, resets q, resets 2ary equation
  */
 var postPublish = () =>
 {
     group = new WeylGroup(getAlgTypeLevel());
     q = BigNumber.ZERO;
     theory.invalidateSecondaryEquation();
-    theory.invalidateTertiaryEquation();
     updateAvailability();
-
-    // todo -- buffer old word
 }
-var getPublicationMultiplier = (tau) => tau.pow(1.5) / BigNumber.THREE;
-var getPublicationMultiplierFormula = (symbol) => "\\frac{{" + symbol + "}^{1.5}}{3}";
+var getPublicationMultiplier = (tau) => tau.pow(1.5);
+var getPublicationMultiplierFormula = (symbol) => symbol + "^{1.5}";
 var getTau = () => BigNumber.from(currency.value).pow(0.1);
 var get2DGraphValue = () => currency.value.sign * (BigNumber.ONE + currency.value.abs()).log10().toNumber();
 
@@ -891,56 +1003,64 @@ var get2DGraphValue = () => currency.value.sign * (BigNumber.ONE + currency.valu
     }
 }
 
-/**
- * Saves q, group.word, and the letter auto-buyer setting as a string delimited by spaces
- * @returns {String}
- */
-var getInternalState = () =>
+// serialization
 {
-    // todo: letter auto-buyer counter -- or don't, maybe?
-
-    let result = "";
-
-    // get q
-    result += q.toString();
-
-    // get group word
-    result += " ";
-    if (group.word.length > 0) 
+    /**
+     * Saves q, group.word, and letter auto-buyer settings as a string delimited by spaces
+     * @returns {String}
+     */
+    var getInternalState = () =>
     {
-        for (let i=0;i<group.word.length;i++) result += group.word[i];
+        // todo: letter auto-buyer counter -- or don't, maybe?
+
+        let result = "";
+
+        // get q
+        result += q.toString();
+
+        // get group word
+        result += " ";
+        if (group.word.length > 0) 
+        {
+            for (let i=0;i<group.word.length;i++) result += group.word[i];
+        }
+
+        // get buffer state and "save word" switch
+        result += " ";
+        if (bufferState.length > 0) result += bufferState;
+        result += " ";
+        result += (saveWord) ? 1 : 0;
+
+        return result;
     }
+    /**
+     * Sets q, re-initializes group and adds the saved word, and re-inputs the letter auto-buyer setting from stateString
+     * Also resets certain variables without a saved value
+     * @param {String} stateString 
+     */
+    var setInternalState = (stateString) =>
+    {
+        values = stateString.split(" ");
 
-    // get buffer state
-    result += " ";
-    if (bufferState.length > 0) result += " " + bufferState;
+        // set q
+        if (values.length > 0) q = BigNumber.from(values[0]);
 
-    return result;
-}
-/**
- * Sets q, re-initializes group and adds the saved word, and re-inputs the letter auto-buyer setting from stateString
- * Also resets certain variables without saving a value
- * @param {String} stateString 
- */
-var setInternalState = (stateString) =>
-{
-    values = stateString.split(" ");
+        // set group word
+        group = new WeylGroup(getAlgTypeLevel());
+        if (values.length > 1) group.addWord(values[1]);
 
-    // set q
-    if (values.length > 0) q = BigNumber.from(values[0]);
+        // set buffer state
+        bufferState = "";
+        if (values.length > 2 && letterAutoBuyer.level > 0) for (let i=0;i<values[2].length;i++) bufferState += values[2][i]; // I don't trust js strings or arrays well enough to populate this string without a for loop
+        if (values.length > 3) saveWord = (values[3] == "1") ? true : false;
 
-    // set group word
-    group = new WeylGroup(getAlgTypeLevel());
-    if (values.length > 1) group.addWord(values[1]);
-
-    // set buffer state
-    bufferState = "";
-    if (values.length > 2 && letterAutoBuyer.level > 0) for (let i=0;i<values[2].length;i++) bufferState += values[2][i]; // I don't trust js strings or arrays well enough to populate this string without a for loop
-
-    // reset other variables
-    letterAutoBuyerCount = 0;
-    timesClickedFreeE10Rho = 0;
-    page = 0;
+        // reset other variables
+        letterAutoBuyerCount = 0;
+        timesClickedFreeE10Rho = 0;
+        actuallyBuying = true;
+        page = 0;
+        updateAvailability();
+    }
 }
 
 /**
@@ -1007,6 +1127,8 @@ var getCartan = (type) =>
     return cartan;
 }
 
+
+// I never implemented this one, but I might in the future
 /**
  * Returns an 8x8 matrix representing the given letter
  * @param {number} type - the type order is A, D, B, E
@@ -1071,14 +1193,15 @@ var multiplyMatrixVector = (matrixA, vectorX) =>
 }
 
 /**
- * Returns true if the string is composed of only the letters a through h, and false otherwise
- * Is case sensitive (you should convert your string to lowercaase before passing it in)
+ * Returns true if the string is composed of only the letters a purchaseable at the player's current rank, and false otherwise
+ * Is case sensitive (assumes the string passed in is all lowercase)
  * @param {String} testText 
  * @returns {boolean}
  */
 var bufferIsValid = (testText) =>
 {
     let isValid = true;
+    let rank = wRank.level;
 
     let i=0;
     while (isValid && i < testText.length)
@@ -1088,12 +1211,36 @@ var bufferIsValid = (testText) =>
             case "a": break;
             case "b": break;
             case "c": break;
-            case "d": break;
-            case "e": break;
-            case "f": break;
-            case "g": break;
-            case "h": break;
-            default: isValid = false; break;
+            case "d": 
+            {
+                if (rank < 1) isValid = false; 
+                break;
+            }
+            case "e": 
+            {
+                if (rank < 2) isValid = false;
+                break;
+            }
+            case "f": 
+            {
+                if (rank < 3) isValid = false;
+                break;
+            }
+            case "g": 
+            {
+                if (rank < 4) isValid = false;
+                break;
+            }
+            case "h": 
+            {
+                if (rank < 5) isValid = false;
+                break;
+            }
+            default: 
+            {
+                isValid = false; 
+                break;
+            }
         }
         i++;
     }
@@ -1104,7 +1251,7 @@ var bufferIsValid = (testText) =>
 /**
  * Returns the message to be shown in the popup where buffer is input
  * I want this to be dynamic so the player can read the entire word (if they intend to use that information)
- * todo: localize and gate
+ * todo: localize
  * @returns {String}
  */
 var getBufferMessage = () =>
@@ -1113,18 +1260,36 @@ var getBufferMessage = () =>
     let rawWordString = getWordString(group.word);
     let len = rawWordString.length;
     
-    result +="Enter a string of letters (\\(a\\) through \\(";
+    result += "Enter a string of letters (\\(a\\) through \\(";
     result += LETTERS[wRank.level + 2];
     result += "\\)) to automatically buy when available.";
-    // result += " Your current word is:\\\\ \\(\\begin{matrix}";
-    // let i=0;
-    // while (i < len)
-    // {
-    //     if (i > 0) result += "\\\\";
-    //     result += rawWordString.slice(i,i+40);
-    //     i += 40;
-    // }
-    // result += "\\end{matrix}\\)";
+    result += " Your current word is:\\\\ \\(\\begin{matrix}";
+    if (len == 0) result += "*";
+
+    let i=0;
+    while (i < len)
+    {
+        if (i > 0) result += "\\\\";
+        result += rawWordString.slice(i,i+40);
+        i += 40;
+    }
+    result += "\\end{matrix}\\)";
+
+    return result;
+}
+
+/**
+ * Returns the error message to be shown in the for invalid buffer text
+ * todo: localize
+ * @returns {String}
+ */
+var getErrorMessage = () =>
+{
+    let result = "";
+    
+    result += "Only use the letters \\(a\\) through \\(";
+    result += LETTERS[wRank.level + 2];
+    result += "\\)";
 
     return result;
 }
@@ -1133,7 +1298,7 @@ var getBufferMessage = () =>
  * WeylGroup holds a reduced word for an element of a Weyl group of rank 8
  *
  * type is an integer 0 to 4 corresponding to the type, in the order A, D, B, E
- * word is an array of integers 0..7 representing a reduced word in the Weyl group, with letters corresponding to simple reflections
+ * word is an array of integers 0 to 7 representing a reduced word in the Weyl group, with letters corresponding to simple reflections
  * element is an 8x8 matrix representing the element corresponding to word. Specifically, it is the matrix corresponding to the
  *      restriction of the 8-dimensional contragradient representation of the rank-8 group of given type
  * 
@@ -1305,17 +1470,23 @@ class WeylGroup
     /**
      * Changes the type of W according to the number passed in
      * As opposed to reset(), changeType is intended to be non-destructive of w
-     * Still, w tends to shrink significantly upon switching types
-     * I may reconsider how this works, since I want the player to be motivated to buy milestone upgrades as early as possible
+     * It determines how close w is to the longest word given the type and rank, then replaces
+     *      w with a valid word of the new type, with either the same fraction of progress, or the same length
      * The types are A, D, B, E
      * @param {number} newType 
+     * @param {number} rank
      */
-    changeType(newType)
+    changeType(newType, rank)
     {
         // store old info
-        let oldWord = "";
         let oldLength = this.word.length;
-        for (let i=0;i<oldLength;i++) oldWord += this.word[i];
+        let oldType = this.type;
+
+        // decide how long to make the new word
+        // I may change this, but the current model is to let the length be the same fraction of the maximum length as the old word
+        let fracOfMaxLength = oldLength / MAX_LENGTHS[oldType][rank];
+        let newLength = Math.min(Math.floor(MAX_LENGTHS[newType][rank] * fracOfMaxLength), oldLength);
+        let newWord = LONGEST_WORDS[newType].slice(0,newLength);
 
         // reset group
         for (let i=0;i<oldLength;i++) this.word.pop();
@@ -1334,8 +1505,39 @@ class WeylGroup
             for (let j=0;j<RANK;j++) this.cartan[i][j] = newCartan[i][j];
         }
 
-        // add old word (will be reduced, unfortunately; may change how this works)
-        this.addWord(oldWord);
+        // add a standard word of determined length
+        this.addWord(newWord);
+    }
+
+    /**
+     * Delete letters (this is a misnomer; actually a standard new word is provided with an appropriately chosen number of letters)
+     * The number of letters of the new word is the smaller of: the maximum length for its type and rank, and the old number of letters, minus
+     *      the old number of letters that are no longer allowed
+     * @param {number} newRank 
+     */
+    eraseLettersAfter(newRank)
+    {
+        // determine info for setting new word
+        let numberInvalidLetters = 0;
+        for (let i=0;i<this.word.length;i++)
+        {
+            if (this.word[i] > newRank) numberInvalidLetters++;
+        }
+        let newLength = Math.min(this.word.length - numberInvalidLetters, MAX_LENGTHS[this.type][newRank]);
+        let newWord = LONGEST_WORDS[this.type].slice(0,newLength);
+
+        // reset word
+        let oldLength = this.word.length;
+        for (let i=0;i<oldLength;i++) this.word.pop();
+        for (let i=0;i<RANK;i++) this.element.pop();
+        for (let i=0;i<RANK;i++) 
+        {
+            this.element.push([]);
+            for (let j=0;j<RANK;j++) this.element[i].push(ID[i][j]);
+        }
+
+        // add a standard word of determined length
+        this.addWord(newWord);
     }
 }
 
