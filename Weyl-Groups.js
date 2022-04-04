@@ -1,7 +1,6 @@
-import { CustomCost, ExponentialCost, FirstFreeCost, FreeCost, LinearCost } from "./api/Costs";
+import { CompositeCost, CustomCost, ExponentialCost, FirstFreeCost, FreeCost, LinearCost } from "./api/Costs";
 import { Localization } from "./api/Localization";
 import { BigNumber } from "./api/BigNumber";
-// import { QuaternaryEntry, theory } from "./api/Theory";
 import { Utils } from "./api/Utils";
 import { Popup } from "../api/ui/Popup";
 import { ImageSource } from "../api/ui/properties/ImageSource";
@@ -10,14 +9,14 @@ import { ui } from "../api/ui/UI"
 
 var id = "weyl-groups";
 var name = "Weyl Groups";
-var description = "Build longer words to progress faster!\n\nA word w is an element of a Weyl group W, and it is a sequence of letters a through h.";
+var description = "Build longer words to progress faster!\n\nBe very careful about the order you buy letters. Sometimes, when you buy a letter, it will make the word shorter.";
 var authors = "Jackson Hopper";
-var version = 0.4;
+var version = 0.5;
 
 // theory variables
 var currency; // rho
-var q1, q2; // normal q variables
-const letterUpgrades = []; // letters that make up the word
+var q1, q2, q3; // normal q variables
+var letterUpgrades = []; // letters that make up the word
 var algTypeD; // milestone upgrade for type D
 var algTypeB; // milestone upgrade for type B
 var algTypeE; // milestone upgrade for type E
@@ -30,21 +29,21 @@ var q; // a typical q variable
 var group; // an object of type WeylGroup
 var letterAutoBuyerCount; // controls the letter auto-buyer
 var bufferState = ""; // auto-buyer for letters
-var saveWord = true;
+var saveWord = true; // save your word on publishing? works with letter auto-buyer
 var actuallyBuying; // to distinguish between backend level resetting and intentional "buying"
 
 // UI variables
-var page; // controls the primary, secondary, and tertiary equations
-var rightArrow; // when touched, page++
-var leftArrow; // when touched, page--
-var equationOverlay; // object of type View to hold right and left arrows
+var page; // Controls the primary and secondary equations
+var rightArrow; // When tapped, page++
+var leftArrow; // When tapped, page--
+var equationOverlay; // Object of type extending View to hold right and left arrows (I've settled on Grid)
 var bufferPopup; // This popup asks the player to enter a buffer string for the letter auto-buyer
 var bufferPopupLabel; // Label on the buffer popup; declared for dynamic text
 var bufferPopupEntry; // Field on the buffer popup; declared for dynamic text
 var tempText = ""; // For use in saving user input
 var bufferErrorPopup; // Appears if attempted input of invalid buffer string
-var errorLabel;
-var saveWordSwitch;
+var errorLabel; // Holds message for error popup
+var saveWordSwitch; // Toggles saveWord
 
 // achievement variables
 var highestLetter;
@@ -86,11 +85,13 @@ var init = () =>
 {
     currency = theory.createCurrency();
 
-    ///////////////////
     // Upgrades -- these include q1, q2, and letter variables
     {
-        var getQ1Info = (level) => "q_1 = " + getQ1(level).toString(0);
-        q1 = theory.createUpgrade(0, currency, new FirstFreeCost(new ExponentialCost(2, 1)));
+        let getQ1Info = (level) => "q_1 = " + getQ1(level).toString(0);
+        let q1Cost1 = new FirstFreeCost(new ExponentialCost(0.1481 * Math.log2(10), 0.1481 * Math.log2(10)));
+        q1 = theory.createUpgrade(0, currency, q1Cost1);
+        // let q1Cost2 = new ExponentialCost(BigNumber.TEN.pow(0.135 * 30) , 0.1315 * Math.log2(10));
+        // q1 = theory.createUpgrade(0, currency, new CompositeCost(30, q1Cost1, q1Cost2));
         q1.getDescription = (_) => 
         {
             let result = "";
@@ -99,19 +100,69 @@ var init = () =>
         }
         q1.getInfo = (amount) => Utils.getMathTo(getQ1Info(q1.level), getQ1Info(q1.level + amount));
 
-        var getQ2Info = (level) => "q_2 = " + getQ2(level).toString(0);
-        q2 = theory.createUpgrade(1, currency, new ExponentialCost(10, 1.5 * Math.log2(10)));
+        let getQ2Info = (level) => "q_2 = " + getQ2(level).toString(0);
+        let q2Cost1 = new ExponentialCost(10, Math.log2(10));
+        let q2Cost2 = new ExponentialCost(BigNumber.from("e43"), 0.714 * Math.log2(10));
+        q2 = theory.createUpgrade(1, currency, new CompositeCost(43, q2Cost1, q2Cost2));
         q2.getDescription = (_) => Utils.getMath("q_2 = 2^{" + q2.level + "}");
         q2.getInfo = (amount) => Utils.getMathTo(getQ2Info(q2.level), getQ2Info(q2.level + amount));
 
-        letterUpgrades.push(theory.createUpgrade(100 + 0, currency, new FirstFreeCost(new ExponentialCost(1000, 3 * Math.log2(10)))));
-        letterUpgrades.push(theory.createUpgrade(100 + 1, currency, new ExponentialCost(Math.pow(2, Math.PI), 3 * Math.log2(10))));
-        letterUpgrades.push(theory.createUpgrade(100 + 2, currency, new ExponentialCost(Math.pow(3, Math.PI), 3 * Math.log2(10))));
-        letterUpgrades.push(theory.createUpgrade(100 + 3, currency, new ExponentialCost(Math.pow(4, Math.PI), 3 * Math.log2(10))));
-        letterUpgrades.push(theory.createUpgrade(100 + 4, currency, new ExponentialCost(Math.pow(5, Math.PI), 3 * Math.log2(10))));
-        letterUpgrades.push(theory.createUpgrade(100 + 5, currency, new ExponentialCost(Math.pow(6, Math.PI), 3 * Math.log2(10))));
-        letterUpgrades.push(theory.createUpgrade(100 + 6, currency, new ExponentialCost(Math.pow(7, Math.PI), 3 * Math.log2(10))));
-        letterUpgrades.push(theory.createUpgrade(100 + 7, currency, new ExponentialCost(Math.pow(8, Math.PI), 3 * Math.log2(10))));
+        let getQ3Info = (level) => "q_3 = " + getQ3(level).toString(0);
+        q3 = theory.createUpgrade(2, currency, new ExponentialCost(BigNumber.from("e120"), 8 * Math.log2(10)));
+        q3.getDescription = (_) => Utils.getMath("q_3 = 2^{" + q3.level + "}");
+        q3.getInfo = (amount) => Utils.getMathTo(getQ3Info(q3.level), getQ3Info(q3.level + amount));
+
+        for (let i=0;i<RANK;i++)
+        {
+            /**
+             * Non-cumulative cost function for letters
+             * Log of the cost is polynomial, so letters are initially cheap and grow more expensive over time (~e8 near the end of the game)
+             * Note that 1.4403 is ln(1000)/ln(121)
+             * The offset for each letter is i+1 (this is subject to change)
+             * Also, the first a is free
+             * @param {number} level 
+             * @returns {BigNumber}
+             */
+            let letterLevelFn_i = (level) => 
+            {
+                let result = BigNumber.ZERO;
+
+                if (i > 0 || level > 0) result = BigNumber.TEN.pow(Math.pow(level,1.4403));
+                result *= BigNumber.from(i + 1);
+
+                return result;
+            }
+            /**
+             * The cumulative cost function for letters prevents you from buying multiple of the same letter
+             * @param {number} level 
+             * @param {number} amount 
+             * @returns {BigNumber}
+             */
+            let letterCumulativeFn_i = (level, amount) => (amount > 1) ? BigNumber.from ("ee100") : letterLevelFn_i(level);
+            // /** // todo : debug
+            //  * The max level function for letters clamps to 1
+            //  * @param {number} level 
+            //  * @param {BigNumber} currencyAvailable 
+            //  * @returns {number}
+            //  */
+            // let letterMaxFn_i = (level, currencyAvailable) =>
+            // {
+            //     let diff = currencyAvailable - letterLevelFn_i(level);
+
+            //     return (diff.sign() > 0) ? 1 : 0;
+            // }
+            
+            // the fully custom cost function is a little broken, at least as I'm using it
+            // basically it seems the game uses multiple methods to determine what the max purchasable
+            //      level of an upgrade is, including the max function. Worse, even if I tell it the
+            //      max is 1, if it disagrees or something, it will simply not do anything at all when
+            //      you try to buy a level if you have max set
+            let letterMaxFn_i = (_,__) => 0;
+            let customLetterFn_i = new CustomCost(letterLevelFn_i, letterCumulativeFn_i, letterMaxFn_i);
+
+            letterUpgrades.push(theory.createUpgrade(100 + i, currency, customLetterFn_i));
+        }
+
         for (let i=0;i<RANK;i++) 
         {
             letterUpgrades[i].description = "Letter " + Utils.getMath(LETTERS[i] + "\\ "); // the "f" box cuts off the right side if you don't add a space after
@@ -152,18 +203,17 @@ var init = () =>
                 }
             }
 
-            // defaults to unavailable for i< 3 and not autoBuyable
+            // defaults to unavailable for i > 3 and not autoBuyable for all i
             letterUpgrades[i].isAvailable = (i < 3);
             letterUpgrades[i].isAutoBuyable = false;
         }
     }
 
-    /////////////////////
     // Permanent Upgrades -- the publisher, buy all button, autobuyer, and also a custom letter auto-buyer
     {
-        theory.createPublicationUpgrade(0, currency, 1e10);
-        theory.createBuyAllUpgrade(1, currency, 1e13);
-        theory.createAutoBuyerUpgrade(2, currency, 1e30);
+        theory.createBuyAllUpgrade(1, currency, BigNumber.from("1e6"));
+        theory.createPublicationUpgrade(0, currency, BigNumber.from("e13"));
+        theory.createAutoBuyerUpgrade(2, currency, BigNumber.from("1e20"));
 
         letterAutoBuyer = theory.createPermanentUpgrade(3, currency, new CustomCost((_) => BigNumber.from(1e50)));
         letterAutoBuyer.maxLevel = 1;
@@ -172,8 +222,7 @@ var init = () =>
         letterAutoBuyer.bought = (_) => bufferButton.isAvailable = true;
     }
 
-    //////////////////////
-    // Singular upgrade -- the button to open the letter auto-buyer input box
+    // Singular Upgrade -- the button to open the letter auto-buyer input box
     {
         bufferButton = theory.createSingularUpgrade(0, currency, new FreeCost());
         bufferButton.getDescription = (_) => "Enter a string of letters to auto-buy";
@@ -191,10 +240,42 @@ var init = () =>
         bufferButton.isAvailable = false;
     }
 
-    ///////////////////////
-    //// Milestone Upgrades
-    theory.setMilestoneCost(new LinearCost(2, 2));
+    // Milestone Upgrades -- These are variables controlling rank and type of W
     {
+        /**
+         * Milestone cost is based on the rho of the longest word available under the 
+         *      second-most optimal milestone route
+         * Sometimes there is additional waiting beyond that
+         * The optimal milestone route is 1/1/1/2/1/1/3/4
+         * The "second-most optimal" route is 1/2/1/1/3/1/4/1 or 1/1/1/1/1/2/3/4
+         * The assumed longest words, according to the second-most optimal routes, are of lengths
+         *      6,10,12,20,30,36,49,63,120 or 6,10,15,21,28,36,51,64,120
+         * Correspondingly, by approximately taking the power of the minimum of each point in the sequence,
+         *      sometimes after adding 1, we have the milestone costs
+         * I could change my mind about the mid-to-late-game waiting, if it feels mean
+         * @param {number} level 
+         * @returns {number}
+         */
+        var milestoneCost = (level) =>
+        {
+            let result = BigNumber.ZERO;
+
+            switch (level)
+            {
+                case 0: {result = BigNumber.from(1.648); break;}
+                case 1: {result = BigNumber.from(2.8); break;}
+                case 2: {result = BigNumber.from(4); break;}
+                case 3: {result = BigNumber.from(7.5); break;}
+                case 4: {result = BigNumber.from(12.2); break;}
+                case 5: {result = BigNumber.from(17.4); break;}
+                case 6: {result = BigNumber.from(28); break;}
+                case 7: {result = BigNumber.from(40); break;}
+            }
+
+            return result;
+        }
+        theory.setMilestoneCost(new CustomCost(milestoneCost));
+
         wRank = theory.createMilestoneUpgrade(0, 5);
         wRank.getDescription = (_) => 
         {
@@ -312,16 +393,14 @@ var init = () =>
         algTypeE.isAvailable = false;
     }
     
-    /////////////////
-    //// Achievements
+    // Achievements
     // w0A8 = theory.createAchievement(0, "A8", "You found the longest word in A8", () => group.word.length >= 36 && algType.level == 0);
     // achievement2 = theory.createSecretAchievement(1, "Achievement 2", "Description 2", "Maybe you should buy two levels of c2?", () => cList[1].level > 1);
 
-    ///////////////////
-    //// Story chapters
+    // Story chapters
     // var chap  = theory.createStoryChapter(0, "Chapter 1", "description", () => group.word.length == 1);
 
-    // state initializations
+    // State initializations
     {
         page = 0;
         q = BigNumber.ZERO;
@@ -485,11 +564,11 @@ var init = () =>
         }
     }
 
-    // debug feature: free rho
+    // Alpha feature: free rho
     {
         freeE10Rho = theory.createSingularUpgrade(1,currency,new FreeCost());
         freeE10Rho.bought = (amount) => timesClickedFreeE10Rho += amount;
-        freeE10Rho.description = "Get \\(e10\\rho\\) free";
+        freeE10Rho.description = "Alpha feature: Get \\(e10\\rho\\) free";
     }
 }
 
@@ -528,6 +607,14 @@ var tick = (elapsedTime, multiplier) => {
             {
                 switch (bufferState[0])
                 {
+                    case "0": {letterToBuy = 0; break;}
+                    case "1": {letterToBuy = 1; break;}
+                    case "2": {letterToBuy = 2; break;}
+                    case "3": {letterToBuy = 3; break;}
+                    case "4": {letterToBuy = 4; break;}
+                    case "5": {letterToBuy = 5; break;}
+                    case "6": {letterToBuy = 6; break;}
+                    case "7": {letterToBuy = 7; break;}
                     case "a": {letterToBuy = 0; break;}
                     case "b": {letterToBuy = 1; break;}
                     case "c": {letterToBuy = 2; break;}
@@ -536,14 +623,20 @@ var tick = (elapsedTime, multiplier) => {
                     case "f": {letterToBuy = 5; break;}
                     case "g": {letterToBuy = 6; break;}
                     case "h": {letterToBuy = 7; break;}
+                    default:
+                    {
+                        log("You tried to buy something that's not a letter!");
+                        letterToBuy = -1; 
+                        break;
+                    }
                 }
-                upgradeToBuy = letterUpgrades[letterToBuy];
-                diff = currency.value - upgradeToBuy.cost.getCost(upgradeToBuy.level);
-                if (diff.sign > -1)
+                if (letterToBuy > -1)
                 {
-                    upgradeToBuy.buy(1);
-                    bufferState = bufferState.slice(1);
+                    upgradeToBuy = letterUpgrades[letterToBuy];
+                    diff = currency.value - upgradeToBuy.cost.getCost(upgradeToBuy.level);
+                    if (diff.sign > -1) upgradeToBuy.buy(1);
                 }
+                bufferState = bufferState.slice(1);
             }
 
             letterAutoBuyerCount -= 1;
@@ -554,7 +647,7 @@ var tick = (elapsedTime, multiplier) => {
     {
         let dt = BigNumber.from(elapsedTime * multiplier);
         let bonus = theory.publicationMultiplier;
-        q += dt * getQ1(q1.level) * getQ2(q2.level);
+        q += dt * getQ1(q1.level) * getQ2(q2.level) * getQ3(q3.level) / BigNumber.TEN;
         currency.value += dt * bonus * q * BigNumber.TWO.pow(group.word.length);
 
         theory.invalidateTertiaryEquation();
@@ -588,13 +681,13 @@ var tick = (elapsedTime, multiplier) => {
         {
             case 0:
             {
-                theory.primaryEquationHeight = 30;
+                theory.primaryEquationHeight = 40;
 
                 result += "\\begin{matrix}";
 
                 result += "\\dot{\\rho} = q \\cdot 2^{\\ell(w)}, &";
 
-                result += "\\dot{q} = q_1 q_2, &";
+                result += "\\dot{q} = \\displaystyle\\frac{q_1 q_2 q_3}{10}, &";
 
                 result += theory.latexSymbol;
                 result += " = \\max{\\rho^{0.1}}";
@@ -735,7 +828,7 @@ var tick = (elapsedTime, multiplier) => {
     {
         let result = "";
 
-        for (let i=0;i<word.length;i++) result += LETTERS[word[i]];
+        if (word != null) for (let i=0;i<word.length;i++) result += LETTERS[word[i]];
 
         return result;
     }
@@ -945,10 +1038,13 @@ var prePublish = () =>
 {
     if (saveWord && letterAutoBuyer.level > 0)
     {
-        let tempBuffer = getWordString();
+        let tempBuffer = getWordString(group.word);
         tempBuffer += bufferState;
         bufferState = "";
         for (let i=0;i<tempBuffer.length;i++) bufferState += tempBuffer[i];
+
+        log("tempBuffer is " + tempBuffer);
+        log(bufferState);
     } else bufferState = "";
 }
 /**
@@ -961,25 +1057,36 @@ var postPublish = () =>
     theory.invalidateSecondaryEquation();
     updateAvailability();
 }
-var getPublicationMultiplier = (tau) => tau.pow(1.5);
-var getPublicationMultiplierFormula = (symbol) => symbol + "^{1.5}";
-var getTau = () => BigNumber.from(currency.value).pow(0.1);
-var get2DGraphValue = () => currency.value.sign * (BigNumber.ONE + currency.value.abs()).log10().toNumber();
+
+// publish menu and tau info
+{
+    var getPublicationMultiplier = (tau) => tau.pow(1.69) / BigNumber.from(45);
+    var getPublicationMultiplierFormula = (_) => "\\frac{{" + currency.symbol + "}^{0.169}}{45}";
+    var getTau = () => BigNumber.from(currency.value).pow(0.1);
+    var get2DGraphValue = () => currency.value.sign * (BigNumber.ONE + currency.value.abs()).log10().toNumber();
+    var getCurrencyFromTau = (tau) => [tau.max(BigNumber.ONE).pow(10), currency.symbol];
+}
 
 // get levels
 {
     /**
-     * I think Q1 will be stepwise, with 10 steps per doubling
+     * Normal stepwise q1
      * @param {number} level 
      * @returns {BigNumber}
      */
-    var getQ1 = (level) => BigNumber.from(Utils.getStepwisePowerSum(level,2,10,0));
+    var getQ1 = (level) => BigNumber.from(Utils.getStepwisePowerSum(level,2,6,0));
     /**
-     * I think q2 will be exponential, with doubling every purchase
+     * Normal doubling q2
      * @param {number} level 
      * @returns {BigNumber}
      */
     var getQ2 = (level) => BigNumber.TWO.pow(level);
+    /**
+     * Normal doubling q3 -- If I feel bad I can make it tripling
+     * @param {number} level 
+     * @returns {BigNumber}
+     */
+    var getQ3 = (level) => BigNumber.TWO.pow(level);
 
     /**
      * Returns the combined "level" of the "algType" milestone upgrades
@@ -1263,7 +1370,7 @@ var getBufferMessage = () =>
     result += "Enter a string of letters (\\(a\\) through \\(";
     result += LETTERS[wRank.level + 2];
     result += "\\)) to automatically buy when available.";
-    result += " Your current word is:\\\\ \\(\\begin{matrix}";
+    result += " Your current word is:\\\\ \\(\\begin{array}{l}";
     if (len == 0) result += "*";
 
     let i=0;
@@ -1273,7 +1380,7 @@ var getBufferMessage = () =>
         result += rawWordString.slice(i,i+40);
         i += 40;
     }
-    result += "\\end{matrix}\\)";
+    result += "\\end{array}\\)";
 
     return result;
 }
@@ -1459,12 +1566,18 @@ class WeylGroup
 
     /**
      * Adds a string of letters to word and reduces them
-     * The string should be a string of numbers 0-7, rather than the letters themselves
+     * Runs much faster if the word is already reduced
+     * Caution: The string should be a string of numbers 0-7, rather than the letters themselves
+     * This function will ignore letters that are not number 0-7
      * @param {String} wordString 
      */
     addWord(wordString)
     {
-        for (let i=0;i<wordString.length;i++) this.addLetter(parseInt(wordString[i]));
+        for (let i=0;i<wordString.length;i++) 
+        {
+            let letter_i = parseInt(wordString[i]);
+            if (letter_i > -1 && letter_i < RANK) this.addLetter(letter_i);
+        }
     }
 
     /**
