@@ -9,54 +9,71 @@ import { ui } from "../api/ui/UI"
 
 var id = "weyl-groups";
 var name = "Weyl Groups";
-var description = "Build longer words to progress faster!\n\nBe very careful about the order you buy letters. Sometimes, when you buy a letter, it will make the word shorter.";
+var description = "Many years have passed since you found infinity. You are sitting in your office, trying not to think about all the people in your department who want you to retire. You know you have more research to give to the world. Out of the corner of your eye, you spot a dusty yellow book, \"Combinatorics of Coxeter Groups,\" by Björner and Brenti. You blow away the dust and flip through a couple pages. Maybe your next great discovery is contained inside...\n\nThis is a theory about Weyl groups, which is to say it's a theory about words. An element of a Weyl group is a word, written using only a handful of letters. In this theory you will have a word, and you will make that word longer by buying letters.\n\nSometimes, when you buy a letter, the word will grow longer, and your income will grow faster. Sometimes, it will make the word shorter, stalling your progress. Which outcome happens follows a complicated set of rules depending on the letters you've already bought—and the order you bought them in.\n\nHere's one hint to get you started: buying the last letter of your word will always make your word shorter.\n\nGood luck, and enjoy!";
 var authors = "Jackson Hopper";
-var version = 0.5;
+var version = 0.6;
 
 // theory variables
 var currency; // rho
 var q1, q2, q3; // normal q variables
 var letterUpgrades = []; // letters that make up the word
+var deleteLetterUpgrade; // Upgrade that deletes a letter for free
 var algTypeD; // milestone upgrade for type D
 var algTypeB; // milestone upgrade for type B
 var algTypeE; // milestone upgrade for type E
 var wRank; // milestone upgrade for rank -- level 0 is rank 3, up to level 5 for rank 8
-var letterAutoBuyer; // permanent upgrade used to make letter auto-buyer available
-var bufferButton; // singular upgrade used to open up the field where player inputs buffer string
+var letterAutoBuyerUpgrade; // permanent upgrade used to make letter auto-buyer available
+var letterAutoBuyerSettings; // singular upgrade used to open up the field where player inputs buffer string
 
 // state variables
-var q; // a typical q variable
+var q; // a typical "q" variable defined by a differential equation, as in T2, T4, T5, and T6 (not like T1 or T7)
 var group; // an object of type WeylGroup
-var letterAutoBuyerCount; // controls the letter auto-buyer
-var bufferState = ""; // auto-buyer for letters
+var letterAutoBuyerCount; // controls the letter auto-buyer; increments 1.6 times per second, and the letter auto buyer tries to buy a letter every time this is > 1
+var letterAutoBuyerString; // auto-buyer for letters
 var saveWord = true; // save your word on publishing? works with letter auto-buyer
-var actuallyBuying; // to distinguish between backend level resetting and intentional "buying"
+var actuallyBuying; // to distinguish between backend level resetting and intentional "buying"--whether manual or automatic
 
 // UI variables
 var page; // Controls the primary and secondary equations
-var rightArrow; // When tapped, page++
-var leftArrow; // When tapped, page--
-var equationOverlay; // Object of type extending View to hold right and left arrows (I've settled on Grid)
-var bufferPopup; // This popup asks the player to enter a buffer string for the letter auto-buyer
-var bufferPopupLabel; // Label on the buffer popup; declared for dynamic text
-var bufferPopupEntry; // Field on the buffer popup; declared for dynamic text
-var tempText = ""; // For use in saving user input
-var bufferErrorPopup; // Appears if attempted input of invalid buffer string
-var errorLabel; // Holds message for error popup
-var saveWordSwitch; // Toggles saveWord
+var rightArrow; // When tapped, page++ // todo: color
+var leftArrow; // When tapped, page-- // todo: color
+var equationOverlay; // Object of type Grid to hold right and left arrows
+var letterAutoBuyerPopup; // This popup allows the player edit settings for the letter auto buyer; declared to call show() and hide()
+var letterAutoBuyerPopupLabel; // First label on the letter auto buyer popup; declared for dynamic text
+var letterAutoBuyerEntry; // Entry object on the letter auto buyer popup; declared for dynamic text
+var tempText = ""; // For use in saving user input in the letter auto buyer popup
+var letterAutoBuyerErrorPopup; // Appears if attempted input of invalid buffer string; declared to call show() and hide()
+var errorLabel; // Holds message for error popup; declared for dynamic text
+var saveWordSwitch; // Toggles saveWord; declared for dynamic toggling // todo -- color
 
 // achievement variables
-var highestLetter;
+var longestWordCategory; // Achievement category for longest words
+var exploringCategory; // Achievement category for exploring mechanics
 
-// free rho variables
+var highestLetter; // The latest letter in the alphabet contained in word
+var manualBuyStreak; // The number of letters bought manually in a row without deleting a letter
+var buyingLastLetter; // Whether the most recent word change was due to buying the last letter in the word
+var deletePressed; // Whether the delete button has been pressed
+var deleteStreak; // The number of letters deleted in a row without lengthening the word
+var isBuyingManually; // True when purchases are not made by the letter auto buyer
+var earnAnAPhase; // A number from 0 to 8, corresponding to the number of successfully completed steps in the process of "Earning an A"
+// it's a bit complicated, and can be accomplished in 2 ways, depending on whether the last letter is a or not
+// if so, simply delete a with the delete button, buy a different letter that lengthens the word, and buy a when possible--but before you can buy b
+// if a is not the last letter but it would shorten the word, delete the last letter, buy a so it shortens word, buy 2 more letters lengthening word, then buy a before you can buy b
+// todo -- test
+var hasBeached; // Does group.word contain the word beached?
+var typed8LetterWord; // Is the entry field in the letter auto buyer populated with one of 5 accepted 8+ letter English words?
+var editedBufferState; // True when the letter auto buyer setting has been altered
+
+// free rho variables -- to be deleted once balance is sufficiently good
 var freeE10Rho;
 var timesClickedFreeE10Rho = 0;
 
 // tick variables -- declared here to avoid re-declaring every tick
 // anyone who actually codes for a living feel free to weigh in on this, but I think this is faster
+// I think one alternative is to declare them in init()?
 var letterToBuy;
 var upgradeToBuy;
-var diff;
 
 // constants
 const LETTERS = ["a", "b", "c", "d", "e", "f", "g", "h"]
@@ -74,7 +91,7 @@ const RHO = [1,1,1,1,1,1,1,1]; // This is the "Weyl vertex" (represented with th
 // note: the Weyl vertex is conventially called rho, but the player will not see this name for it
 const MAX_LENGTHS = [[  1,  3,  6, 10, 15, 21, 28, 36],
                      [  0,  0,  0, 12, 20, 30, 42, 56],
-                     [  0,  0,  0, 16, 25, 36, 49, 64],
+                     [  0,  4,  9, 16, 25, 36, 49, 64],
                      [  0,  0,  0,  0,  0, 36, 63,120]]; // spoiler warning, lol
 const LONGEST_WORDS = [ "010210321043210543210654321076543210",
                         "01021031021343102134543102134565431021345676543102134567",
@@ -85,7 +102,7 @@ var init = () =>
 {
     currency = theory.createCurrency();
 
-    // Upgrades -- these include q1, q2, and letter variables
+    // Upgrades -- these include q1, q2, letters, and the delete button
     {
         let getQ1Info = (level) => "q_1 = " + getQ1(level).toString(0);
         let q1Cost1 = new FirstFreeCost(new ExponentialCost(0.1481 * Math.log2(10), 0.1481 * Math.log2(10)));
@@ -147,9 +164,9 @@ var init = () =>
             //  */
             // let letterMaxFn_i = (level, currencyAvailable) =>
             // {
-            //     let diff = currencyAvailable - letterLevelFn_i(level);
+            // //     let diff = currencyAvailable - letterLevelFn_i(level);
 
-            //     return (diff.sign() > 0) ? 1 : 0;
+            //     return (currencyAvailable > letterLevelFn_i(level)) ? 1 : 0;
             // }
             
             // the fully custom cost function is a little broken, at least as I'm using it
@@ -179,25 +196,78 @@ var init = () =>
                 return result;
             }
 
-            // When bought, automatically adjusts the levels of all other letters to l(w)
-            letterUpgrades[i].bought = (amount) =>
+            /** 
+             * When bought, automatically adjusts the levels of all other letters to l(w)
+             * Also, if actuallyBuying, then updates deletePressed, deleteStreak, manualBuyStreak, and buyingLastLetter, and calls updateAchievements
+             * todo: test
+             * todo: update earningAnAPhase
+             * Possible todo: let the player know which letter was deleted?
+             * Note: assumes amount == 1, because of the way the cost function is written
+             * @param {number} _
+             */
+            letterUpgrades[i].bought = (_) =>
             {
                 if (actuallyBuying)
                 {
                     actuallyBuying = false;
 
-                    if (amount%2==1)
+                    deletePressed = false;
+                    let oldLength = group.word.length;
+                    // note addLetterResult is the index of the dropped letter, or -1
+                    let addLetterResult = group.addLetter(i);
+
+                    theory.invalidateSecondaryEquation();
+                    theory.invalidateTertiaryEquation();
+                    letterAutoBuyerPopupLabel.text = getBufferMessage();
+
+                    if (addLetterResult > -1)
                     {
-                        group.addLetter(i); // todo: catch the letter, and let the player know which letter was deleted
-                        theory.invalidateSecondaryEquation();
-                        theory.invalidateTertiaryEquation();
-                        theory.invalidateQuaternaryValues();
-                        bufferPopupLabel.text = getBufferMessage();
+                        deleteStreak++;
+                        manualBuyStreak = 0;
+                        buyingLastLetter = (addLetterResult == oldLength - 1);
+                    } else
+                    {
+                        deleteStreak = 0;
+                        manualBuyStreak = (isBuyingManually) ? manualBuyStreak + 1 : 0;
+                        buyingLastLetter = false;
                     }
+
+                    // update earnAnAPhase
+                    // in phase 2, buying an a to shorten word increases earnAnAPhase
+                    // in phases 3, 4, and 6, buying something that's not an a to lengthen word increases earnAnAPhase; phase 7 follows phase 4
+                    // in phase 7, buying a while b is unattainable increases earnAnAPhase
+                    // if phase 8 is reached, it is preserved
+                    // other moves will reset the phase to 0
+                    switch (earnAnAPhase)
+                    {
+                        case 2:
+                            earnAnAPhase = (i == 0) ? 3 : 0;
+                            break;
+                        case 3:
+                            earnAnAPhase = (deleteStreak < 1 && i != 0) ? 4 : 0;
+                            break;
+                        case 4:
+                            earnAnAPhase = (deleteStreak < 1 && i != 0) ? 7 : 0;
+                            break;
+                        case 6:
+                            earnAnAPhase = (deleteStreak < 1 && i != 0) ? 7 : 0;
+                            break;
+                        case 7:
+                            let bCost = letterUpgrades[1].cost.getCost(letterUpgrades[1].level);
+                            earnAnAPhase = (i == 0 && currency.value < bCost) ? 8 : 0;
+                            break;
+                        case 8: break;
+                        default:
+                            earnAnAPhase = 0;
+                            break;
+                    }
+
+                    updateAchievements();
+
                     for (let j=0;j<RANK;j++)
-                        {
-                            letterUpgrades[j].level = group.word.length;
-                        }
+                    {
+                        letterUpgrades[j].level = group.word.length;
+                    }
 
                     actuallyBuying = true;
                 }
@@ -207,6 +277,71 @@ var init = () =>
             letterUpgrades[i].isAvailable = (i < 3);
             letterUpgrades[i].isAutoBuyable = false;
         }
+
+        deleteLetterUpgrade = theory.createUpgrade(200, currency, new FreeCost());
+        deleteLetterUpgrade.description = "Delete the last letter"; // todo: written in English; localize
+        deleteLetterUpgrade.getInfo = (_) =>
+        {
+            let result = "";
+            if (group.word.length > 0)
+            {
+                result += "Remove letter ";
+                result += Utils.getMath(LETTERS[group.word[group.word.length - 1]] + "\\ ");
+            } else
+            {
+                result += "No effect";
+            }
+
+            return result;
+        }
+        /**
+         * Deletes last letter and updates levels self and all letters
+         * Updates achievement variables deletePressed, deleteStreak, manualBuyStreak, and buyingLastLetter, and calls updateAchievements
+         * todo: test
+         * todo: update earningAnAPhase
+         * @param {number} _ 
+         */
+        deleteLetterUpgrade.bought = (_) =>
+        {
+            if (group.word.length > 0 && actuallyBuying)
+            {
+                actuallyBuying = false;
+            
+                group.addLetter(group.word[group.word.length - 1]);
+                for (let i=0;i<RANK;i++) letterUpgrades[i].level = group.word.length;
+                theory.invalidateSecondaryEquation();
+                theory.invalidateTertiaryEquation();
+                updateAvailability();
+
+                deletePressed = true;
+                deleteStreak++;
+                manualBuyStreak = 0;
+                buyingLastLetter = false;
+
+                // update earnAnAPhase: deleting a letter takes you from phase 1 to 2 or from phase 5 to 6
+                // if phase 8 is reached, it is preserved
+                // otherwise, it resets to 0
+                switch(earnAnAPhase)
+                {
+                    case 1:
+                        earnAnAPhase = 2;
+                        break;
+                    case 5:
+                        earnAnAPhase = 6;
+                        break;
+                    case 8: break;
+                    default:
+                        earnAnAPhase = 0;
+                        break;
+                }
+
+                updateAchievements();
+
+                actuallyBuying = true;
+            }
+            deleteLetterUpgrade.level = 0;
+        }
+        deleteLetterUpgrade.isAutoBuyable = false;
     }
 
     // Permanent Upgrades -- the publisher, buy all button, autobuyer, and also a custom letter auto-buyer
@@ -215,29 +350,29 @@ var init = () =>
         theory.createPublicationUpgrade(0, currency, BigNumber.from("e13"));
         theory.createAutoBuyerUpgrade(2, currency, BigNumber.from("1e20"));
 
-        letterAutoBuyer = theory.createPermanentUpgrade(3, currency, new CustomCost((_) => BigNumber.from(1e50)));
-        letterAutoBuyer.maxLevel = 1;
-        letterAutoBuyer.getDescription = (_) => "Letter auto-buyer"; // localize / English
-        letterAutoBuyer.getInfo = (_) => "Buffer a string of letters to buy when available"; // localize / English
-        letterAutoBuyer.bought = (_) => bufferButton.isAvailable = true;
+        letterAutoBuyerUpgrade = theory.createPermanentUpgrade(3, currency, new CustomCost((_) => BigNumber.from(1e50)));
+        letterAutoBuyerUpgrade.maxLevel = 1;
+        letterAutoBuyerUpgrade.getDescription = (_) => "Letter auto-buyer"; // localize / English
+        letterAutoBuyerUpgrade.getInfo = (_) => "Buffer a string of letters to buy when available"; // localize / English
+        letterAutoBuyerUpgrade.bought = (_) => letterAutoBuyerSettings.isAvailable = true;
     }
 
     // Singular Upgrade -- the button to open the letter auto-buyer input box
     {
-        bufferButton = theory.createSingularUpgrade(0, currency, new FreeCost());
-        bufferButton.getDescription = (_) => "Enter a string of letters to auto-buy";
-        bufferButton.bought = (_) => 
+        letterAutoBuyerSettings = theory.createSingularUpgrade(0, currency, new FreeCost());
+        letterAutoBuyerSettings.getDescription = (_) => "Enter a string of letters to auto-buy";
+        letterAutoBuyerSettings.bought = (_) => 
         {
             if (actuallyBuying)
             {
                 actuallyBuying = false;
-                bufferButton.level = 0; // I want to not have a level, but this will do for now
-                bufferPopupEntry.text = bufferState; // I want to reset the populated text when the popup is shown
-                bufferPopup.show();
+                letterAutoBuyerSettings.level = 0; // I want to not have a level, but this will do for now
+                letterAutoBuyerEntry.text = letterAutoBuyerString; // I want to reset the populated text when the popup is shown
+                letterAutoBuyerPopup.show();
                 actuallyBuying = true;
             }
         }
-        bufferButton.isAvailable = false;
+        letterAutoBuyerSettings.isAvailable = false;
     }
 
     // Milestone Upgrades -- These are variables controlling rank and type of W
@@ -245,14 +380,14 @@ var init = () =>
         /**
          * Milestone cost is based on the rho of the longest word available under the 
          *      second-most optimal milestone route
-         * Sometimes there is additional waiting beyond that
+         * Sometimes, there is additional waiting beyond that
          * The optimal milestone route is 1/1/1/2/1/1/3/4
-         * The "second-most optimal" route is 1/2/1/1/3/1/4/1 or 1/1/1/1/1/2/3/4
+         * The "second-most optimal" routes are 1/2/1/1/3/1/4/1 and 1/1/1/1/1/2/3/4
          * The assumed longest words, according to the second-most optimal routes, are of lengths
-         *      6,10,12,20,30,36,49,63,120 or 6,10,15,21,28,36,51,64,120
+         *      6,10,12,20,30,36,49,63,120 or 6,10,15,21,28,36,51,64,120, respectively
          * Correspondingly, by approximately taking the power of the minimum of each point in the sequence,
          *      sometimes after adding 1, we have the milestone costs
-         * I could change my mind about the mid-to-late-game waiting, if it feels mean
+         * I could change my mind about how long some wait times are, but the idea is set
          * @param {number} level 
          * @returns {number}
          */
@@ -319,86 +454,189 @@ var init = () =>
                 updateAvailability();
             }
         }
-
-        algTypeD = theory.createMilestoneUpgrade(1, 1);
-        var desc = "Unlock type ";
-        desc += Utils.getMath("D_n");
-        algTypeD.description = desc;
-        algTypeD.info = desc;
-        algTypeD.boughtOrRefunded = (_) => 
+        wRank.canBeRefunded = (amount) =>
         {
-            if (actuallyBuying)
+            result = false;
+
+            switch(getAlgTypeLevel())
             {
-                actuallyBuying = false;
-                if (algTypeD.level < 1)
+                case 0:
                 {
-                    algTypeB.level = 0;
-                    algTypeE.level = 0;
+                    result = true;
+                    break;
                 }
-                group.changeType(getAlgTypeLevel(),wRank.level+2);
-                for (let i=0;i<RANK;i++) letterUpgrades[i].level = group.word.length;
-                actuallyBuying = true;
-
-                theory.invalidatePrimaryEquation();
-                theory.invalidateSecondaryEquation();
-                updateAvailability();
-            }
-        }
-        algTypeD.isAvailable = false;
-
-        algTypeB = theory.createMilestoneUpgrade(2, 1);
-        desc = "Unlock type ";
-        desc += Utils.getMath("B_n");
-        algTypeB.description = desc;
-        algTypeB.info = desc;
-        algTypeB.boughtOrRefunded = (_) => 
-        {
-            if (actuallyBuying)
-            {
-                actuallyBuying = false;
-                if (algTypeB.level < 1)
+                case 1:
                 {
-                    algTypeE.level = 0;
+                    result = (wRank.level - amount > 0);
+                    break;
                 }
-                group.changeType(getAlgTypeLevel(),wRank.level+2);
-                for (let i=0;i<RANK;i++) letterUpgrades[i].level = group.word.length;
-                actuallyBuying = true;
-                
-                theory.invalidatePrimaryEquation();
-                theory.invalidateSecondaryEquation();
-                updateAvailability();
+                case 2:
+                {
+                    result = (wRank.level - amount > 0);
+                    break;
+                }
+                case 3:
+                {
+                    result = (wRank.level - amount > 2);
+                    break;
+                }
             }
-        }
-        algTypeB.isAvailable = false;
 
-        algTypeE = theory.createMilestoneUpgrade(3, 1);
-        desc = "Unlock type ";
-        desc += Utils.getMath("E_n");
-        algTypeE.description = desc;
-        algTypeE.info = desc;
-        algTypeE.boughtOrRefunded = (_) => 
-        {
-            if (actuallyBuying)
-            {
-                actuallyBuying = false;
-                group.changeType(getAlgTypeLevel(),wRank.level+2);
-                for (let i=0;i<RANK;i++) letterUpgrades[i].level = group.word.length;
-                actuallyBuying = true;
-                
-                theory.invalidatePrimaryEquation();
-                theory.invalidateSecondaryEquation();
-                updateAvailability();
-            }
+            return result;
         }
-        algTypeE.isAvailable = false;
+
+        // algTypeD
+        {
+            algTypeD = theory.createMilestoneUpgrade(1, 1);
+            let desc = "Unlock type ";
+            desc += Utils.getMath("D_n");
+            algTypeD.description = desc;
+            algTypeD.info = desc;
+            algTypeD.boughtOrRefunded = (_) => 
+            {
+                if (actuallyBuying)
+                {
+                    actuallyBuying = false;
+                    if (algTypeD.level < 1)
+                    {
+                        algTypeB.level = 0;
+                        algTypeE.level = 0;
+                    }
+                    group.changeType(getAlgTypeLevel(),wRank.level+2);
+                    for (let i=0;i<RANK;i++) letterUpgrades[i].level = group.word.length;
+                    actuallyBuying = true;
+
+                    theory.invalidatePrimaryEquation();
+                    theory.invalidateSecondaryEquation();
+                    updateAvailability();
+                }
+            }
+            algTypeD.isAvailable = false;
+            algTypeD.canBeRefunded = (_) => (getAlgTypeLevel() < 2);
+        }
+
+        // algTypeB
+        {
+            algTypeB = theory.createMilestoneUpgrade(2, 1);
+            let desc = "Unlock type ";
+            desc += Utils.getMath("B_n");
+            algTypeB.description = desc;
+            algTypeB.info = desc;
+            algTypeB.boughtOrRefunded = (_) => 
+            {
+                if (actuallyBuying)
+                {
+                    actuallyBuying = false;
+                    if (algTypeB.level < 1)
+                    {
+                        algTypeE.level = 0;
+                    }
+                    group.changeType(getAlgTypeLevel(),wRank.level+2);
+                    for (let i=0;i<RANK;i++) letterUpgrades[i].level = group.word.length;
+                    actuallyBuying = true;
+                    
+                    theory.invalidatePrimaryEquation();
+                    theory.invalidateSecondaryEquation();
+                    updateAvailability();
+                }
+            }
+            algTypeB.isAvailable = false;
+            algTypeB.canBeRefunded = (_) => (getAlgTypeLevel() < 3);
+        }
+
+        // algTypeE
+        {
+            algTypeE = theory.createMilestoneUpgrade(3, 1);
+            let desc = "Unlock type ";
+            desc += Utils.getMath("E_n");
+            algTypeE.description = desc;
+            algTypeE.info = desc;
+            algTypeE.boughtOrRefunded = (_) => 
+            {
+                if (actuallyBuying)
+                {
+                    actuallyBuying = false;
+                    group.changeType(getAlgTypeLevel(),wRank.level+2);
+                    for (let i=0;i<RANK;i++) letterUpgrades[i].level = group.word.length;
+                    actuallyBuying = true;
+                    
+                    theory.invalidatePrimaryEquation();
+                    theory.invalidateSecondaryEquation();
+                    updateAvailability();
+                }
+            }
+            algTypeE.isAvailable = false;
+        }
     }
     
     // Achievements
-    // w0A8 = theory.createAchievement(0, "A8", "You found the longest word in A8", () => group.word.length >= 36 && algType.level == 0);
-    // achievement2 = theory.createSecretAchievement(1, "Achievement 2", "Description 2", "Maybe you should buy two levels of c2?", () => cList[1].level > 1);
+    // todo: localize, obviously
+    // todo: test achievement variables
+    {
+        longestWordCategory = theory.createAchievementCategory(0, "Longest words");
+        exploringCategory = theory.createAchievementCategory(1, "Exploring mechanics");
+
+        // exploration achievements
+        {
+            theory.createAchievement(100, exploringCategory, "Never buy the last letter", "Delete a letter buy buying the last letter in your word", () => buyingLastLetter && deleteStreak > 0);
+            theory.createAchievement(101, exploringCategory, "Why is this so complicated?", "Delete a letter by buying a letter other than the last letter", () => !buyingLastLetter && deleteStreak > 0 && !deletePressed);
+            theory.createAchievement(102, exploringCategory, "Why do we even have that button?", "Delete a letter by clicking the \"Delete a letter\" button", () => deleteStreak > 0 && deletePressed);
+            theory.createAchievement(103, exploringCategory, "Did you mean to do that?", "Delete your whole word", () => deleteStreak >= 5 && group.word.length == 0);
+            theory.createAchievement(104, exploringCategory, "You're getting better at this", "Manually buy 5 letters in a row without deleting any", () => manualBuyStreak > 4);
+            theory.createAchievement(105, exploringCategory, "Take a hint", "Manually buy 20 letters in a row without deleting any", () => manualBuyStreak > 19);
+            theory.createAchievement(106, exploringCategory, "Customize the auto-buyer", "Change the settings on the letter auto buyer", () => editedBufferState);
+            theory.createAchievement(107, exploringCategory, "Careful how you set that!", "Delete a letter with the letter auto buyer", () => deleteStreak > 0 && !deletePressed && !isBuyingManually);
+            theory.createAchievement(108, exploringCategory, "Earn an A", "Rearrange your word to buy an \"a\"", () => earnAnAPhase == 8);
+        }
+
+        // longest word achievements
+        {
+            theory.createAchievement(0, longestWordCategory, "Longest word in A₂", "Find the longest word in A₂", () => getAlgTypeLevel() == 0 && highestLetter == 1 && group.word.length >= MAX_LENGTHS[0][1]);
+            theory.createAchievement(1, longestWordCategory, "Longest word in A₃", "Find the longest word in A₃", () => getAlgTypeLevel() == 0 && highestLetter == 2 && group.word.length >= MAX_LENGTHS[0][2]);
+            theory.createAchievement(2, longestWordCategory, "Longest word in A₄", "Find the longest word in A₄", () => getAlgTypeLevel() == 0 && highestLetter == 3 && group.word.length >= MAX_LENGTHS[0][3]);
+            theory.createAchievement(3, longestWordCategory, "Longest word in A₅", "Find the longest word in A₅", () => getAlgTypeLevel() == 0 && highestLetter == 4 && group.word.length >= MAX_LENGTHS[0][4]);
+            theory.createAchievement(4, longestWordCategory, "Longest word in A₆", "Find the longest word in A₆", () => getAlgTypeLevel() == 0 && highestLetter == 5 && group.word.length >= MAX_LENGTHS[0][5]);
+            theory.createAchievement(5, longestWordCategory, "Longest word in A₇", "Find the longest word in A₇", () => getAlgTypeLevel() == 0 && highestLetter == 6 && group.word.length >= MAX_LENGTHS[0][6]);
+            theory.createAchievement(6, longestWordCategory, "Longest word in A₈", "Find the longest word in A₈", () => getAlgTypeLevel() == 0 && highestLetter == 7 && group.word.length >= MAX_LENGTHS[0][7]);
+
+            theory.createAchievement(10, longestWordCategory, "Longest word in D₄", "Find the longest word in D₄", () => getAlgTypeLevel() == 1 && highestLetter == 2 && group.word.length >= MAX_LENGTHS[1][3]);
+            theory.createAchievement(11, longestWordCategory, "Longest word in D₅", "Find the longest word in D₅", () => getAlgTypeLevel() == 1 && highestLetter == 2 && group.word.length >= MAX_LENGTHS[1][4]);
+            theory.createAchievement(12, longestWordCategory, "Longest word in D₆", "Find the longest word in D₆", () => getAlgTypeLevel() == 1 && highestLetter == 2 && group.word.length >= MAX_LENGTHS[1][5]);
+            theory.createAchievement(13, longestWordCategory, "Longest word in D₇", "Find the longest word in D₇", () => getAlgTypeLevel() == 1 && highestLetter == 2 && group.word.length >= MAX_LENGTHS[1][6]);
+            theory.createAchievement(14, longestWordCategory, "Longest word in D₈", "Find the longest word in D₈", () => getAlgTypeLevel() == 1 && highestLetter == 7 && group.word.length >= MAX_LENGTHS[1][7]);
+
+            theory.createAchievement(20, longestWordCategory, "Longest word in B₂", "Find the longest word in B₂", () => getAlgTypeLevel() == 2 && highestLetter == 2 && group.word.length >= MAX_LENGTHS[2][1]);
+            theory.createAchievement(21, longestWordCategory, "Longest word in B₃", "Find the longest word in B₃", () => getAlgTypeLevel() == 2 && highestLetter == 2 && group.word.length >= MAX_LENGTHS[2][2]);
+            theory.createAchievement(22, longestWordCategory, "Longest word in B₄", "Find the longest word in B₄", () => getAlgTypeLevel() == 2 && highestLetter == 2 && group.word.length >= MAX_LENGTHS[2][3]);
+            theory.createAchievement(23, longestWordCategory, "Longest word in B₅", "Find the longest word in B₅", () => getAlgTypeLevel() == 2 && highestLetter == 2 && group.word.length >= MAX_LENGTHS[2][4]);
+            theory.createAchievement(24, longestWordCategory, "Longest word in B₆", "Find the longest word in B₆", () => getAlgTypeLevel() == 2 && highestLetter == 2 && group.word.length >= MAX_LENGTHS[2][5]);
+            theory.createAchievement(25, longestWordCategory, "Longest word in B₇", "Find the longest word in B₇", () => getAlgTypeLevel() == 2 && highestLetter == 2 && group.word.length >= MAX_LENGTHS[2][6]);
+            theory.createAchievement(26, longestWordCategory, "Longest word in B₈", "Find the longest word in B₈", () => getAlgTypeLevel() == 2 && highestLetter == 7 && group.word.length >= MAX_LENGTHS[2][7]);
+
+            theory.createAchievement(30, longestWordCategory, "Longest word in E₆", "Find the longest word in E₆", () => getAlgTypeLevel() == 3 && highestLetter == 5 && group.word.length >= MAX_LENGTHS[3][5]);
+            theory.createAchievement(31, longestWordCategory, "Longest word in E₇", "Find the longest word in E₇", () => getAlgTypeLevel() == 3 && highestLetter == 6 && group.word.length >= MAX_LENGTHS[3][6]);
+            theory.createAchievement(32, longestWordCategory, "Longest word in E₈", "Find the longest word in E₈", () => getAlgTypeLevel() == 3 && highestLetter == 7 && group.word.length >= MAX_LENGTHS[3][7]);
+        }
+
+        // secret achievements
+        {
+            theory.createSecretAchievement(200, "Headache", "Type a common 8-letter English word in the letter auto buyer", "Have some fun in the letter auto buyer settings", () => typed8LetterWord);
+            // beachhead, beheaded, cabbaged, deadhead, headache
+            theory.createSecretAchievement(201, "Beached", "Have a common 7-letter English word contained in word", "There's a word in my word!", () => hasBeached);
+            theory.createSecretAchievement(202, "Master of Weyl groups", "Manually buy all 120 letters of the longest word in E₈ without deleting any or using the auto buyer", "You really need to know your Weyl groups", () => getAlgTypeLevel() == 3 && manualBuyStreak >= 120);
+        }
+    }
 
     // Story chapters
-    // var chap  = theory.createStoryChapter(0, "Chapter 1", "description", () => group.word.length == 1);
+    // todo: localize, obviously
+    {
+        theory.createStoryChapter(0, "Getting Started", "You've done it—you bought your first letter! It always feels so good to start a new project. So far, things are looking pretty good.\nWill this theory always be so easy?", () => group.word.length > 0);
+        theory.createStoryChapter(1, "A Little Longer", "Congratulations! You've unlocked a milestone and now your word is longer than was originally possible.\nThings are getting a little more complicated now.\nYou begin to wonder, are there any hints anywhere? If so, what do they mean?", () => group.word.length > 6);
+        theory.createStoryChapter(2, "Making Progress", "It looks like the milestones are going well! You're getting a lot of publications out of this theory already. You've still got it in you, after all!\nHave you played with the letter auto buyer?", () => group.word.legnth > 15);
+        theory.createStoryChapter(3, "Smooth Sailing", "You're learning about a lot of different types of Weyl groups now.\nYou're pretty confident you can follow this theory to the end, whenever that will be.\nThere's still a lot to learn, but things are starting to make some more sense now.", () => group.word.length > 36);
+        theory.createStoryChapter(4, "The Home Stretch", "Wow, you've unlocked all the milestones! You've heard of E₈ before, but you can't remember exactly where...\nYou decide to give it a quick google.", () => group.word.length > 64);
+        theory.createStoryChapter(5, "The End of the Game", "You did it! You found the longest word in type E₈! You lean back in your chair and sigh contentedly.\nSurely that's the end of the theory...\nRight?", () => group.word.length > 119);
+    }
 
     // State initializations
     {
@@ -408,33 +646,61 @@ var init = () =>
         letterAutoBuyerCount = 0;
         actuallyBuying = true;
         updateAvailability();
+        letterAutoBuyerString = "";
+
+        // achievement states
+        highestLetter = 0;
+        manualBuyStreak = 0;
+        buyingLastLetter = false;
+        deletePressed = false;
+        deleteStreak = 0;
+        isBuyingManually = true; // defaults to true since the letter auto buyer can turn it off
+        earnAnAPhase = 0;
+        hasBeached = false;
+        typed8LetterWord = false;
+        editedBufferState = false;
+        updateAchievements();
     }
 
     // UI initializations
     {
-        // buffer popup
-        bufferPopup = ui.createPopup({
+        // letter auto buyer popup
+        letterAutoBuyerPopup = ui.createPopup({
             title: "Letter auto-buyer", // todo : localize
             content: ui.createStackLayout({
                 children: [
                     ui.createFrame({
                         padding: new Thickness(11,11),
-                        content: bufferPopupLabel = ui.createLatexLabel({
+                        content: letterAutoBuyerPopupLabel = ui.createLatexLabel({
                             text: getBufferMessage(),
                         })
                     }),
-                    bufferPopupEntry = ui.createEntry({
+                    letterAutoBuyerEntry = ui.createEntry({
                         isSpellCheckEnabled: false,
                         isTextPredictionEnabled: false,
-                        text: bufferState,
-                        onTextChanged: (_, tempInput) => tempText = tempInput.toLowerCase(),
+                        text: letterAutoBuyerString,
+                        onTextChanged: (_, tempInput) => 
+                        {
+                            tempText = tempInput.toLowerCase();
+                            switch(tempText)
+                            {
+                                case "beachhead": typed8LetterWord = true; break;
+                                case "beheaded": typed8LetterWord = true; break;
+                                case "cabbaged": typed8LetterWord = true; break;
+                                case "deadhead": typed8LetterWord = true; break;
+                                case "headache": typed8LetterWord = true; break;
+                                default: break;
+                            }
+                        },
                         onCompleted: () => 
                         {
                             if (bufferIsValid(tempText)) 
                             {
-                                bufferState = tempText;
-                                bufferPopup.hide();
-                            } else bufferErrorPopup.show();
+                                let oldBufferState = letterAutoBuyerString;
+                                letterAutoBuyerString = tempText;
+                                editedBufferState = letterAutoBuyerString != oldBufferState;
+                                letterAutoBuyerPopup.hide();
+                            } else letterAutoBuyerErrorPopup.show();
                             tempText = "";
                         }
                     }),
@@ -444,10 +710,12 @@ var init = () =>
                         {
                             if (bufferIsValid(tempText)) 
                             {
-                                bufferState = tempText;
-                                bufferPopup.hide()
+                                let oldBufferState = letterAutoBuyerString;
+                                letterAutoBuyerString = tempText;
+                                editedBufferState = letterAutoBuyerString != oldBufferState;
+                                letterAutoBuyerPopup.hide()
                             }
-                            else bufferErrorPopup.show();
+                            else letterAutoBuyerErrorPopup.show();
                             tempText = "";
                         }
                     }),
@@ -472,6 +740,7 @@ var init = () =>
                                                 saveWordSwitch.isToggled = !saveWord;
                                                 saveWord = saveWordSwitch.isToggled;
                                             }
+                                            // todo: add in animation for the arrows to increase subjective responsiveness
                                         },
                                         rotation: 270,
                                         isToggled: saveWord,
@@ -489,14 +758,14 @@ var init = () =>
             closeOnBackgroundClicked: true,
             onAppearing: () => 
             {
-                bufferPopupLabel.text = getBufferMessage();
-                bufferPopupEntry.text = bufferState;
+                letterAutoBuyerPopupLabel.text = getBufferMessage();
+                letterAutoBuyerEntry.text = letterAutoBuyerString;
                 saveWordSwitch.isToggled = saveWord;
             }
         });
 
-        // buffer error message
-        bufferErrorPopup = ui.createPopup({
+        // letter auto buyer error message
+        letterAutoBuyerErrorPopup = ui.createPopup({
             title: "Error: Invalid buffer", // localize
             content: ui.createStackLayout({
                 children: [
@@ -508,7 +777,7 @@ var init = () =>
                     }),
                     ui.createButton({
                         text: "Close", // localize
-                        onClicked: () => bufferErrorPopup.hide()
+                        onClicked: () => letterAutoBuyerErrorPopup.hide()
                     }),
                 ]
             }),
@@ -578,13 +847,62 @@ var init = () =>
  */
 var updateAvailability = () => 
 {
-    bufferButton.isAvailable = (letterAutoBuyer.level > 0);
+    letterAutoBuyerSettings.isAvailable = (letterAutoBuyerUpgrade.level > 0);
 
     for (let i=3;i<RANK;i++) letterUpgrades[i].isAvailable = (wRank.level + 3 > i);
 
     algTypeD.isAvailable = (wRank.level > 0);
     algTypeB.isAvailable = (wRank.level > 0 && algTypeD.level > 0);
     algTypeE.isAvailable = (wRank.level > 2 && algTypeB.level > 0);
+}
+
+/**
+ * Updates the achievement variables highestLetter and hasBeached
+ * Assumed to be called every time group.addLetter() is called
+ * todo: update earningAnAPhase
+ */
+var updateAchievements = () =>
+{
+    let word = group.word;
+    let tempHighestLetter = 0;
+    let beachedLetters = 0;
+
+    for (let i=0;i<word.length;i++)
+    {
+        let letter = word[i];
+        // set highest letter
+        tempHighestLetter = Math.max(tempHighestLetter, letter)
+
+        // look for beached (1402743)
+        switch (beachedLetters)
+        {
+            case 0: beachedLetters = (letter == 1) ? 1 : 0; break;
+            case 1: beachedLetters = (letter == 4) ? 2 : 0; break;
+            case 2: beachedLetters = (letter == 0) ? 3 : 0; break;
+            case 3: beachedLetters = (letter == 2) ? 4 : 0; break;
+            case 4: beachedLetters = (letter == 7) ? 5 : 0; break;
+            case 5: beachedLetters = (letter == 4) ? 6 : 0; break;
+            case 6: beachedLetters = (letter == 3) ? 7 : 0; break;
+            default: break;
+        }
+    }
+    highestLetter = tempHighestLetter;
+    hasBeached = (beachedLetters == 7);
+
+    // update progress in earning an a
+    // only kick-starts the process; the rest is handled in buying a letter or the delete button
+    switch(earnAnAPhase)
+    {
+        case 0:
+            if (word[word.length - 1] == 0) earnAnAPhase = 5;
+            else
+            {
+                let wRho = multiplyMatrixVector(group.element, RHO);
+                earnAnAPhase = (wRho[0] < 0) ? 1 : 0;
+            }
+            break;
+        default: break;
+    }
 }
 
 /**
@@ -603,9 +921,9 @@ var tick = (elapsedTime, multiplier) => {
 
         while (letterAutoBuyerCount > 1)
         {    
-            if (bufferState.length > 0)
+            if (letterAutoBuyerString.length > 0)
             {
-                switch (bufferState[0])
+                switch (letterAutoBuyerString[0])
                 {
                     case "0": {letterToBuy = 0; break;}
                     case "1": {letterToBuy = 1; break;}
@@ -625,7 +943,7 @@ var tick = (elapsedTime, multiplier) => {
                     case "h": {letterToBuy = 7; break;}
                     default:
                     {
-                        log("You tried to buy something that's not a letter!");
+                        // log("You tried to buy something that's not a letter!");
                         letterToBuy = -1; 
                         break;
                     }
@@ -633,10 +951,17 @@ var tick = (elapsedTime, multiplier) => {
                 if (letterToBuy > -1)
                 {
                     upgradeToBuy = letterUpgrades[letterToBuy];
-                    diff = currency.value - upgradeToBuy.cost.getCost(upgradeToBuy.level);
-                    if (diff.sign > -1) upgradeToBuy.buy(1);
+                    // diff = currency.value - upgradeToBuy.cost.getCost(upgradeToBuy.level);
+                    if (currency.value > upgradeToBuy.cost.getCost(upgradeToBuy.level)) 
+                    {
+                        isBuyingManually = false;
+
+                        upgradeToBuy.buy(1);
+                        letterAutoBuyerString = letterAutoBuyerString.slice(1);
+
+                        isBuyingManually = true;
+                    }
                 }
-                bufferState = bufferState.slice(1);
             }
 
             letterAutoBuyerCount -= 1;
@@ -653,7 +978,7 @@ var tick = (elapsedTime, multiplier) => {
         theory.invalidateTertiaryEquation();
     }
 
-    // debug feature: free rho
+    // alpha feature: free rho
     {
         if (timesClickedFreeE10Rho > 0)
         {
@@ -662,14 +987,15 @@ var tick = (elapsedTime, multiplier) => {
         }
     }
 
-    // turn off auto-buy for letters
+    // turn off auto-buy for letters and delete button
     for (let i=0;i<RANK;i++) letterUpgrades[i].isAutoBuyable = false;
+    deleteLetterUpgrade.isAutoBuyable = false;
 }
 
 // equation area
 {
     /**
-     * When page == 0, returns the dot(rho) and dot(q) equations, as well as tau
+     * When page == 0, returns the dot(rho), dot(q), and tau equations
      * When page == 1, returns the Dynkin diagram of W
      * When page == 2, returns an empty string
      * @returns {String}
@@ -834,8 +1160,8 @@ var tick = (elapsedTime, multiplier) => {
     }
     /**
      * When page == 0, returns type and w
-     * When page == 1, returns a (probably useless) key to the Dynkin diagram
-     * When page == 2, returns a hint to choosing a good letter
+     * When page == 1, returns cryptic and potentially unhelpful key to interpreting the Dynkin diagram
+     * When page == 2, returns a hint to choosing a good letter, adapted from the "numbers game" for Coxeter groups
      * @returns {String}
      */
     var getSecondaryEquation = () => 
@@ -1024,7 +1350,7 @@ var tick = (elapsedTime, multiplier) => {
     }
 
     /**
-     * Called when page changes; refreshes visibility of arrow buttons, then returns the Grid holding them
+     * Gets the equation overlay, which is a grid containing the arrow buttons to change pages
      * @returns {Grid}
      */
     var getEquationOverlay = () => equationOverlay;
@@ -1036,16 +1362,16 @@ var tick = (elapsedTime, multiplier) => {
  */
 var prePublish = () => 
 {
-    if (saveWord && letterAutoBuyer.level > 0)
+    if (saveWord && letterAutoBuyerUpgrade.level > 0)
     {
         let tempBuffer = getWordString(group.word);
-        tempBuffer += bufferState;
-        bufferState = "";
-        for (let i=0;i<tempBuffer.length;i++) bufferState += tempBuffer[i];
+        tempBuffer += letterAutoBuyerString;
+        letterAutoBuyerString = "";
+        for (let i=0;i<tempBuffer.length;i++) letterAutoBuyerString += tempBuffer[i];
 
         log("tempBuffer is " + tempBuffer);
-        log(bufferState);
-    } else bufferState = "";
+        log(letterAutoBuyerString);
+    } else letterAutoBuyerString = "";
 }
 /**
  * After publishing, updates availability, resets word, resets q, resets 2ary equation
@@ -1060,14 +1386,14 @@ var postPublish = () =>
 
 // publish menu and tau info
 {
-    var getPublicationMultiplier = (tau) => tau.pow(1.69) / BigNumber.from(45);
-    var getPublicationMultiplierFormula = (_) => "\\frac{{" + currency.symbol + "}^{0.169}}{45}";
+    var getPublicationMultiplier = (tau) => tau.pow(1.69) / BigNumber.TEN;
+    var getPublicationMultiplierFormula = (_) => "\\frac{{" + currency.symbol + "}^{0.169}}{10}";
     var getTau = () => BigNumber.from(currency.value).pow(0.1);
     var get2DGraphValue = () => currency.value.sign * (BigNumber.ONE + currency.value.abs()).log10().toNumber();
     var getCurrencyFromTau = (tau) => [tau.max(BigNumber.ONE).pow(10), currency.symbol];
 }
 
-// get levels
+// get values
 {
     /**
      * Normal stepwise q1
@@ -1082,7 +1408,7 @@ var postPublish = () =>
      */
     var getQ2 = (level) => BigNumber.TWO.pow(level);
     /**
-     * Normal doubling q3 -- If I feel bad I can make it tripling
+     * Normal doubling q3
      * @param {number} level 
      * @returns {BigNumber}
      */
@@ -1090,7 +1416,7 @@ var postPublish = () =>
 
     /**
      * Returns the combined "level" of the "algType" milestone upgrades
-     * They have been separated into distinct upgrades to allow proper control of availability
+     * They are separated into distinct upgrades to allow proper control of availability
      * The value returned should be:
      *      0 if type A
      *      1 if type D
@@ -1113,7 +1439,7 @@ var postPublish = () =>
 // serialization
 {
     /**
-     * Saves q, group.word, and letter auto-buyer settings as a string delimited by spaces
+     * Saves q, group.word, letter auto-buyer settings, and achievement variables as a string delimited by spaces
      * @returns {String}
      */
     var getInternalState = () =>
@@ -1132,16 +1458,24 @@ var postPublish = () =>
             for (let i=0;i<group.word.length;i++) result += group.word[i];
         }
 
-        // get buffer state and "save word" switch
+        // get letter auto buyer setting and "save word" switch
         result += " ";
-        if (bufferState.length > 0) result += bufferState;
+        result += letterAutoBuyerString;
         result += " ";
         result += (saveWord) ? 1 : 0;
+
+        // get achievement variables
+        result += " "; 
+        result += manualBuyStreak;
+        result += " ";
+        result += deleteStreak;
+        result += " ";
+        result += earnAnAPhase;
 
         return result;
     }
     /**
-     * Sets q, re-initializes group and adds the saved word, and re-inputs the letter auto-buyer setting from stateString
+     * Sets q, re-initializes group and adds the saved word, re-inputs the letter auto-buyer setting, and sets the achievement variables from stateString
      * Also resets certain variables without a saved value
      * @param {String} stateString 
      */
@@ -1157,9 +1491,14 @@ var postPublish = () =>
         if (values.length > 1) group.addWord(values[1]);
 
         // set buffer state
-        bufferState = "";
-        if (values.length > 2 && letterAutoBuyer.level > 0) for (let i=0;i<values[2].length;i++) bufferState += values[2][i]; // I don't trust js strings or arrays well enough to populate this string without a for loop
+        letterAutoBuyerString = "";
+        if (values.length > 2 && letterAutoBuyerUpgrade.level > 0) for (let i=0;i<values[2].length;i++) letterAutoBuyerString += values[2][i]; // I don't trust js strings or arrays well enough to populate this string without a for loop
         if (values.length > 3) saveWord = (values[3] == "1") ? true : false;
+
+        // set achievement variables
+        if (values.length > 4) manualBuyStreak = values[4];
+        if (values.length > 5) deleteStreak = values[5];
+        if (values.length > 6) earnAnAPhase = values[6];
 
         // reset other variables
         letterAutoBuyerCount = 0;
@@ -1167,6 +1506,11 @@ var postPublish = () =>
         actuallyBuying = true;
         page = 0;
         updateAvailability();
+
+        buyingLastLetter = false;
+        deletePressed = false;
+        isBuyingManually = true;
+        updateAchievements();
     }
 }
 
@@ -1234,7 +1578,6 @@ var getCartan = (type) =>
     return cartan;
 }
 
-
 // I never implemented this one, but I might in the future
 /**
  * Returns an 8x8 matrix representing the given letter
@@ -1252,7 +1595,7 @@ var getLetter = (type, letter) =>
 /**
  * Returns AB, where A and B are 8x8 matrices
  * Does not validate in any way; assumes both matrices are 8x8, and crashes if they're smaller
- * Multiplies the matrices very naively; this operation does not need to happen too many times, hopefully
+ * Multiplies the matrices very naively 
  * @param {number[][]} matrixA
  * @param {number[][]} matrixB
  * @returns {number[][]}
@@ -1494,7 +1837,12 @@ class WeylGroup
     /**
      * Changes this.element and this.word to reflect the addition of a letter to word
      * Preserves the status of this.word being reduced
-     * Returns -1 if the letter makes this.word longer, and returns the drop index if not
+     * It attempts to keep this.word as similar to the previous word as possible:
+     *      Let w be the old word and let x be the letter being added. If wx is reduced, simply
+     *      replaces w with wx. If wx is not reduced, there is a unique letter of w that can be 
+     *      removed so that the resulting word is equal to wx
+     * In the case wx is shorter than w, this algorithm finds the index of the letter to remove and removes it
+     * Returns -1 if letter makes this.word longer, and returns the drop index if not
      * @param {number} letter - the letter to multiply
      * @return {number}
      */
@@ -1566,7 +1914,7 @@ class WeylGroup
 
     /**
      * Adds a string of letters to word and reduces them
-     * Runs much faster if the word is already reduced
+     * Runs much faster if the word is already reduced; may cause a timeout if not
      * Caution: The string should be a string of numbers 0-7, rather than the letters themselves
      * This function will ignore letters that are not number 0-7
      * @param {String} wordString 
