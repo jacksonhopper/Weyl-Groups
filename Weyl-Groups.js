@@ -763,13 +763,12 @@ var init = () =>
                 letterAutoBuyerPopupLabel.text = getBufferMessage();
                 letterAutoBuyerEntry.text = letterAutoBuyerString;
                 saveWordSwitch.isToggled = saveWord;
-                // pauseLetterAutoBuying = true;
+                pauseLetterAutoBuying = true;
+            },
+            onDisappearing: () =>
+            {
+                pauseLetterAutoBuying = false;
             }
-            // ,
-            // onDisappearing: () =>
-            // {
-            //     pauseLetterAutoBuying = false;
-            // }
         });
 
         // letter auto buyer error message
@@ -930,7 +929,7 @@ var tick = (elapsedTime, multiplier) => {
 
         while (letterAutoBuyerCount > 1)
         {    
-            if (letterAutoBuyerString.length > 0) // todo pause when settings popup is visible
+            if (letterAutoBuyerString.length > 0 && !pauseLetterAutoBuying)
             {
                 switch (letterAutoBuyerString[0])
                 {
