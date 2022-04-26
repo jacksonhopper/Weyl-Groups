@@ -125,7 +125,7 @@ var init = () =>
         q2.getInfo = (amount) => Utils.getMathTo(getQ2Info(q2.level), getQ2Info(q2.level + amount));
 
         let getQ3Info = (level) => "q_3 = " + getQ3(level).toString(0);
-        q3 = theory.createUpgrade(2, currency, new ExponentialCost(BigNumber.from("e120"), 8 * Math.log2(10)));
+        q3 = theory.createUpgrade(2, currency, new ExponentialCost(BigNumber.from("e100"), 8 * Math.log2(10)));
         q3.getDescription = (_) => Utils.getMath("q_3 = 2^{" + q3.level + "}");
         q3.getInfo = (amount) => Utils.getMathTo(getQ3Info(q3.level), getQ3Info(q3.level + amount));
 
@@ -599,18 +599,18 @@ var init = () =>
             theory.createAchievement(5, longestWordCategory, "Longest word in A₇", "Find the longest word in A₇", () => getAlgTypeLevel() == 0 && highestLetter == 6 && group.word.length >= MAX_LENGTHS[0][6]);
             theory.createAchievement(6, longestWordCategory, "Longest word in A₈", "Find the longest word in A₈", () => getAlgTypeLevel() == 0 && highestLetter == 7 && group.word.length >= MAX_LENGTHS[0][7]);
 
-            theory.createAchievement(10, longestWordCategory, "Longest word in D₄", "Find the longest word in D₄", () => getAlgTypeLevel() == 1 && highestLetter == 2 && group.word.length >= MAX_LENGTHS[1][3]);
-            theory.createAchievement(11, longestWordCategory, "Longest word in D₅", "Find the longest word in D₅", () => getAlgTypeLevel() == 1 && highestLetter == 2 && group.word.length >= MAX_LENGTHS[1][4]);
-            theory.createAchievement(12, longestWordCategory, "Longest word in D₆", "Find the longest word in D₆", () => getAlgTypeLevel() == 1 && highestLetter == 2 && group.word.length >= MAX_LENGTHS[1][5]);
-            theory.createAchievement(13, longestWordCategory, "Longest word in D₇", "Find the longest word in D₇", () => getAlgTypeLevel() == 1 && highestLetter == 2 && group.word.length >= MAX_LENGTHS[1][6]);
+            theory.createAchievement(10, longestWordCategory, "Longest word in D₄", "Find the longest word in D₄", () => getAlgTypeLevel() == 1 && highestLetter == 3 && group.word.length >= MAX_LENGTHS[1][3]);
+            theory.createAchievement(11, longestWordCategory, "Longest word in D₅", "Find the longest word in D₅", () => getAlgTypeLevel() == 1 && highestLetter == 4 && group.word.length >= MAX_LENGTHS[1][4]);
+            theory.createAchievement(12, longestWordCategory, "Longest word in D₆", "Find the longest word in D₆", () => getAlgTypeLevel() == 1 && highestLetter == 5 && group.word.length >= MAX_LENGTHS[1][5]);
+            theory.createAchievement(13, longestWordCategory, "Longest word in D₇", "Find the longest word in D₇", () => getAlgTypeLevel() == 1 && highestLetter == 6 && group.word.length >= MAX_LENGTHS[1][6]);
             theory.createAchievement(14, longestWordCategory, "Longest word in D₈", "Find the longest word in D₈", () => getAlgTypeLevel() == 1 && highestLetter == 7 && group.word.length >= MAX_LENGTHS[1][7]);
 
-            theory.createAchievement(20, longestWordCategory, "Longest word in B₂", "Find the longest word in B₂", () => getAlgTypeLevel() == 2 && highestLetter == 2 && group.word.length >= MAX_LENGTHS[2][1]);
+            theory.createAchievement(20, longestWordCategory, "Longest word in B₂", "Find the longest word in B₂", () => getAlgTypeLevel() == 2 && highestLetter == 1 && group.word.length >= MAX_LENGTHS[2][1]);
             theory.createAchievement(21, longestWordCategory, "Longest word in B₃", "Find the longest word in B₃", () => getAlgTypeLevel() == 2 && highestLetter == 2 && group.word.length >= MAX_LENGTHS[2][2]);
-            theory.createAchievement(22, longestWordCategory, "Longest word in B₄", "Find the longest word in B₄", () => getAlgTypeLevel() == 2 && highestLetter == 2 && group.word.length >= MAX_LENGTHS[2][3]);
-            theory.createAchievement(23, longestWordCategory, "Longest word in B₅", "Find the longest word in B₅", () => getAlgTypeLevel() == 2 && highestLetter == 2 && group.word.length >= MAX_LENGTHS[2][4]);
-            theory.createAchievement(24, longestWordCategory, "Longest word in B₆", "Find the longest word in B₆", () => getAlgTypeLevel() == 2 && highestLetter == 2 && group.word.length >= MAX_LENGTHS[2][5]);
-            theory.createAchievement(25, longestWordCategory, "Longest word in B₇", "Find the longest word in B₇", () => getAlgTypeLevel() == 2 && highestLetter == 2 && group.word.length >= MAX_LENGTHS[2][6]);
+            theory.createAchievement(22, longestWordCategory, "Longest word in B₄", "Find the longest word in B₄", () => getAlgTypeLevel() == 2 && highestLetter == 3 && group.word.length >= MAX_LENGTHS[2][3]);
+            theory.createAchievement(23, longestWordCategory, "Longest word in B₅", "Find the longest word in B₅", () => getAlgTypeLevel() == 2 && highestLetter == 4 && group.word.length >= MAX_LENGTHS[2][4]);
+            theory.createAchievement(24, longestWordCategory, "Longest word in B₆", "Find the longest word in B₆", () => getAlgTypeLevel() == 2 && highestLetter == 5 && group.word.length >= MAX_LENGTHS[2][5]);
+            theory.createAchievement(25, longestWordCategory, "Longest word in B₇", "Find the longest word in B₇", () => getAlgTypeLevel() == 2 && highestLetter == 6 && group.word.length >= MAX_LENGTHS[2][6]);
             theory.createAchievement(26, longestWordCategory, "Longest word in B₈", "Find the longest word in B₈", () => getAlgTypeLevel() == 2 && highestLetter == 7 && group.word.length >= MAX_LENGTHS[2][7]);
 
             theory.createAchievement(30, longestWordCategory, "Longest word in E₆", "Find the longest word in E₆", () => getAlgTypeLevel() == 3 && highestLetter == 5 && group.word.length >= MAX_LENGTHS[3][5]);
@@ -632,7 +632,7 @@ var init = () =>
     {
         theory.createStoryChapter(0, "Getting Started", "You've done it—you bought your first letter! It always feels so good to start a new project. So far, things are looking pretty good.\nWill this theory always be so easy?", () => group.word.length > 0);
         theory.createStoryChapter(1, "A Little Longer", "Congratulations! You've unlocked a milestone and now your word is longer than was originally possible.\nThings are getting a little more complicated now.\nYou begin to wonder, are there any hints anywhere? If so, what do they mean?", () => group.word.length > 6);
-        theory.createStoryChapter(2, "Making Progress", "It looks like the milestones are going well! You're getting a lot of publications out of this theory already. You've still got it in you, after all!\nHave you played with the letter auto buyer?", () => group.word.legnth > 15);
+        theory.createStoryChapter(2, "Making Progress", "It looks like the milestones are going well! You're getting a lot of publications out of this theory already. You've still got it in you, after all!\nHave you played with the letter auto buyer?", () => group.word.length > 15);
         theory.createStoryChapter(3, "Smooth Sailing", "You're learning about a lot of different types of Weyl groups now.\nYou're pretty confident you can follow this theory to the end, whenever that will be.\nThere's still a lot to learn, but things are starting to make some more sense now.", () => group.word.length > 36);
         theory.createStoryChapter(4, "The Home Stretch", "Wow, you've unlocked all the milestones! You've heard of E₈ before, but you can't remember exactly where...\nYou decide to give it a quick google.", () => group.word.length > 64);
         theory.createStoryChapter(5, "The End of the Game", "You did it! You found the longest word in type E₈! You lean back in your chair and sigh contentedly.\nSurely that's the end of the theory...\nRight?", () => group.word.length > 119);
@@ -705,7 +705,7 @@ var init = () =>
                         }
                     }),
                     ui.createButton({
-                        text: "Set buffer", // localize
+                        text: "Confirm settings", // localize
                         onClicked: () => 
                         {
                             if (bufferIsValid(tempText)) 
@@ -721,6 +721,7 @@ var init = () =>
                     }),
                     ui.createGrid({
                         columnDefinitions: ["*","60"],
+                        rowDefinitions: ["*", "2*", "*"],
                         children: [
                             ui.createFrame({
                                 padding: new Thickness(11,11),
@@ -740,7 +741,6 @@ var init = () =>
                                                 saveWordSwitch.isToggled = !saveWord;
                                                 saveWord = saveWordSwitch.isToggled;
                                             }
-                                            // todo: add in animation for the arrows to increase subjective responsiveness
                                         },
                                         rotation: 270,
                                         isToggled: saveWord,
@@ -786,6 +786,7 @@ var init = () =>
         });
 
         // arrows overlay
+        // todo animate
         {
             equationOverlay = ui.createGrid({
                 columnDefinitions: ["*", "*", "*"],
@@ -921,37 +922,33 @@ var tick = (elapsedTime, multiplier) => {
 
         while (letterAutoBuyerCount > 1)
         {    
-            if (letterAutoBuyerString.length > 0)
+            if (letterAutoBuyerString.length > 0 && !letterAutoBuyerPopup.isVisible)
             {
                 switch (letterAutoBuyerString[0])
                 {
-                    case "0": {letterToBuy = 0; break;}
-                    case "1": {letterToBuy = 1; break;}
-                    case "2": {letterToBuy = 2; break;}
-                    case "3": {letterToBuy = 3; break;}
-                    case "4": {letterToBuy = 4; break;}
-                    case "5": {letterToBuy = 5; break;}
-                    case "6": {letterToBuy = 6; break;}
-                    case "7": {letterToBuy = 7; break;}
-                    case "a": {letterToBuy = 0; break;}
-                    case "b": {letterToBuy = 1; break;}
-                    case "c": {letterToBuy = 2; break;}
-                    case "d": {letterToBuy = 3; break;}
-                    case "e": {letterToBuy = 4; break;}
-                    case "f": {letterToBuy = 5; break;}
-                    case "g": {letterToBuy = 6; break;}
-                    case "h": {letterToBuy = 7; break;}
+                    case "0": letterToBuy = 0; break;
+                    case "1": letterToBuy = 1; break;
+                    case "2": letterToBuy = 2; break;
+                    case "3": letterToBuy = 3; break;
+                    case "4": letterToBuy = 4; break;
+                    case "5": letterToBuy = 5; break;
+                    case "6": letterToBuy = 6; break;
+                    case "7": letterToBuy = 7; break;
+                    case "a": letterToBuy = 0; break;
+                    case "b": letterToBuy = 1; break;
+                    case "c": letterToBuy = 2; break;
+                    case "d": letterToBuy = 3; break;
+                    case "e": letterToBuy = 4; break;
+                    case "f": letterToBuy = 5; break;
+                    case "g": letterToBuy = 6; break;
+                    case "h": letterToBuy = 7; break;
                     default:
-                    {
-                        // log("You tried to buy something that's not a letter!");
                         letterToBuy = -1; 
                         break;
-                    }
                 }
                 if (letterToBuy > -1)
                 {
                     upgradeToBuy = letterUpgrades[letterToBuy];
-                    // diff = currency.value - upgradeToBuy.cost.getCost(upgradeToBuy.level);
                     if (currency.value > upgradeToBuy.cost.getCost(upgradeToBuy.level)) 
                     {
                         isBuyingManually = false;
@@ -1633,10 +1630,11 @@ var multiplyMatrixVector = (matrixA, vectorX) =>
 
     for (let i=0;i<RANK;i++)
     {
-        result.push([]);
+        // result.push([]);
         let iEntry = 0;
         for (let k=0;k<RANK;k++) iEntry += matrixA[i][k] * vectorX[k];
-        result[i].push(iEntry);
+        // result[i].push(iEntry);
+        result.push(iEntry);
     }
 
     return result;
