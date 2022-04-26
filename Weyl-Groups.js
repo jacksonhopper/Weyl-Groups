@@ -45,6 +45,7 @@ var tempText = ""; // For use in saving user input in the letter auto buyer popu
 var letterAutoBuyerErrorPopup; // Appears if attempted input of invalid buffer string; declared to call show() and hide()
 var errorLabel; // Holds message for error popup; declared for dynamic text
 var saveWordSwitch; // Toggles saveWord; declared for dynamic toggling // todo -- color
+var pauseLetterAutoBuying;
 
 // achievement variables
 var longestWordCategory; // Achievement category for longest words
@@ -647,6 +648,7 @@ var init = () =>
         actuallyBuying = true;
         updateAvailability();
         letterAutoBuyerString = "";
+        pauseLetterAutoBuying = false;
 
         // achievement states
         highestLetter = 0;
@@ -739,7 +741,7 @@ var init = () =>
                                             if (touch.type.isReleased())
                                             {
                                                 saveWordSwitch.isToggled = !saveWord;
-                                                saveWord = saveWordSwitch.isToggled;
+                                                saveWord = saveWordSwitch.isToggled; // todo debug
                                             }
                                         },
                                         rotation: 270,
@@ -761,6 +763,11 @@ var init = () =>
                 letterAutoBuyerPopupLabel.text = getBufferMessage();
                 letterAutoBuyerEntry.text = letterAutoBuyerString;
                 saveWordSwitch.isToggled = saveWord;
+                pauseLetterAutoBuying = true;
+            },
+            onDisappearing: () =>
+            {
+                pauseLetterAutoBuying = false;
             }
         });
 
@@ -922,7 +929,7 @@ var tick = (elapsedTime, multiplier) => {
 
         while (letterAutoBuyerCount > 1)
         {    
-            if (letterAutoBuyerString.length > 0 && !letterAutoBuyerPopup.isVisible)
+            if (letterAutoBuyerString.length > 0 && !pauseLetterAutoBuying)
             {
                 switch (letterAutoBuyerString[0])
                 {
@@ -1433,7 +1440,7 @@ var postPublish = () =>
     }
 }
 
-// serialization
+// serialization -- todo save element and change addWord
 {
     /**
      * Saves q, group.word, letter auto-buyer settings, and achievement variables as a string delimited by spaces
@@ -1502,6 +1509,8 @@ var postPublish = () =>
         timesClickedFreeE10Rho = 0;
         actuallyBuying = true;
         page = 0;
+        letterAutoBuyerPopup.isVisible = false;
+        pauseLetterAutoBuying = false;
         updateAvailability();
 
         buyingLastLetter = false;
