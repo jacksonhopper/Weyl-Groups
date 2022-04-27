@@ -1509,7 +1509,7 @@ var postPublish = () =>
         timesClickedFreeE10Rho = 0;
         actuallyBuying = true;
         page = 0;
-        letterAutoBuyerPopup.isVisible = false;
+//         letterAutoBuyerPopup.isVisible = false;
         pauseLetterAutoBuying = false;
         updateAvailability();
 
